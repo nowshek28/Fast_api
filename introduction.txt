@@ -1,0 +1,220 @@
+Project Summary
+Project Name (Working)
+
+FastAPI Production Template - Todo API
+
+A production-ready FastAPI backend built from scratch without a database, designed for learning modern backend development principles.
+
+Objective
+
+This project demonstrates how to build a clean, scalable REST API using FastAPI while avoiding unnecessary complexity.
+
+Instead of focusing on databases or cloud services, the project focuses on backend architecture, API design, validation, error handling, maintainability, and clean code practices.
+
+All data is stored in JSON files, allowing learners to understand backend fundamentals before introducing databases.
+
+What the API Does
+
+The application manages a collection of Todo items.
+
+Each todo contains information such as:
+
+Unique ID
+Title
+Description
+Completion status
+Priority
+Creation timestamp
+Last updated timestamp
+
+The API allows clients to:
+
+Create new todos
+Retrieve one or many todos
+Update existing todos
+Delete todos
+Search todos
+Filter todos
+Sort results
+Paginate responses
+Validate incoming data
+Return standardized API responses
+Handle errors consistently
+
+Although the business logic is intentionally simple, the backend architecture follows practices commonly used in production applications.
+
+Learning Goals
+
+By completing this project, a developer should understand:
+
+FastAPI Fundamentals
+Application lifecycle
+Routing
+Request handling
+Response handling
+Dependency Injection
+Middleware
+Exception handling
+API Design
+REST principles
+HTTP methods
+Status codes
+Resource naming
+Response consistency
+Error design
+Data Validation
+
+Using Pydantic to
+
+validate requests
+serialize responses
+enforce business rules
+define reusable schemas
+Project Architecture
+
+Instead of placing everything inside one file, the project introduces layered architecture.
+
+Client
+      │
+      ▼
+Router
+      │
+      ▼
+Service
+      │
+      ▼
+Repository
+      │
+      ▼
+JSON Storage
+
+Each layer has one responsibility.
+
+Clean Code
+
+The project demonstrates
+
+Separation of concerns
+Small reusable functions
+Type hints
+Documentation
+Consistent naming
+Modular organization
+Production Practices
+
+Learners will also understand
+
+Configuration management
+Logging
+Custom exceptions
+Environment variables
+Versioned APIs
+Reusable utilities
+Standardized responses
+Storage
+
+Instead of using a database,
+
+the application stores data inside JSON files.
+
+Example
+
+data/
+    todos.json
+
+This approach allows developers to focus on backend architecture without introducing SQL or NoSQL concepts too early.
+
+The storage implementation is isolated so it can later be replaced by any database with minimal code changes.
+
+Target Audience
+
+This repository is designed for developers who
+
+know basic Python
+want to learn FastAPI properly
+want to understand backend architecture
+want more than simple CRUD tutorials
+want to build maintainable APIs
+
+It is not intended as a "FastAPI in 15 minutes" tutorial. It emphasizes understanding why architectural choices are made.
+
+Technologies
+
+Core stack:
+
+Python 3.12+
+FastAPI
+Uvicorn
+Pydantic
+Standard Library
+
+Supporting libraries:
+
+python-dotenv
+typing
+pathlib
+logging
+uuid
+datetime
+
+Testing:
+
+pytest
+httpx
+
+Code Quality:
+
+Ruff (linting)
+Black (formatting)
+pre-commit (optional but recommended)
+Repository Philosophy
+
+This repository follows four principles:
+
+1. Production-inspired
+
+Even though the application is small, the architecture mirrors what is commonly found in professional backend projects.
+
+2. Educational
+
+Every module, function, and design decision should be understandable. Code should be written for readability first.
+
+3. Incremental
+
+Each chapter introduces one new concept while building on previous knowledge, avoiding large jumps in complexity.
+
+4. Extensible
+
+New features should be easy to add without restructuring the entire codebase.
+
+Features
+API Features
+Create Todo
+Get Todo
+Update Todo
+Delete Todo
+List Todos
+Search
+Filtering
+Sorting
+Pagination
+Backend Features
+Request validation
+Response validation
+Global exception handling
+Custom exceptions
+Dependency Injection
+Middleware
+Logging
+Configuration management
+Standard API responses
+JSON persistence
+Developer Experience
+Interactive Swagger documentation
+ReDoc documentation
+Type hints
+Comprehensive comments
+Clear folder structure
+Unit tests
+API tests
+Easy local setup
