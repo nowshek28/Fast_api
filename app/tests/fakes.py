@@ -1,4 +1,49 @@
+from app.auth.exceptions import InvalidCredentialsError, UserNotConfirmedError
+from app.auth.schemas import ConfirmSignUpResponse
 from app.schemas.todo import TodoResponse
+
+
+class FakeCognitoClient:
+    """
+    In-memory Cognito stand-in for unit/integration tests.
+    No AWS credentials or network access required.
+    """
+
+    VALID_CONFIRMATION_CODE = "123456"
+
+    def __init__(self):
+        # email -> {password, name, confirmed}
+        self._users: dict = {}
+
+    def sign_up(self, email: str, password: str, name: str) -> dict:
+        if email in self._users:
+            raise InvalidCredentialsError("User already exists.")
+        self._users[email] = {"password": password, "name": name, "confirmed": False}
+        return {"UserConfirmed": False, "UserSub": "fake-user-sub-uuid"}
+
+    def confirm_sign_up(self, email: str, confirmation_code: str) -> ConfirmSignUpResponse:
+        if email not in self._users:
+            raise InvalidCredentialsError("User not found.")
+        if confirmation_code != self.VALID_CONFIRMATION_CODE:
+            raise InvalidCredentialsError("Invalid confirmation code.")
+        self._users[email]["confirmed"] = True
+        return ConfirmSignUpResponse(message="User confirmed successfully.")
+
+    def login(self, username: str, password: str) -> dict:
+        user = self._users.get(username)
+        if user is None or user["password"] != password:
+            raise InvalidCredentialsError("Invalid username or password.")
+        if not user["confirmed"]:
+            raise UserNotConfirmedError("User is not confirmed.")
+        return {
+            "AuthenticationResult": {
+                "AccessToken": "fake-access-token",
+                "IdToken": "fake-id-token",
+                "RefreshToken": "fake-refresh-token",
+                "ExpiresIn": 3600,
+                "TokenType": "Bearer",
+            }
+        }
 
 
 class FakeTodoRepository:

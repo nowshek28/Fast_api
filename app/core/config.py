@@ -14,6 +14,11 @@ class Settings(BaseSettings):
 
     DATABASE_URL: str
 
+    AWS_REGION: str
+    COGNITO_USER_POOL_ID: str
+    COGNITO_CLIENT_ID: str
+    COGNITO_CLIENT_SECRET: str
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
