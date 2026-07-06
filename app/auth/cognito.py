@@ -163,3 +163,18 @@ class CognitoClient:
         except self.client.exceptions.UserNotFoundException:
             self.logger.warning("Global sign-out failed: user not found.")
             raise UserNotFoundError("User not found.")
+
+    def get_user_attributes(self, access_token: str) -> dict[str, str]:
+        """
+        Fetch the authenticated user's attributes from Cognito using their access token.
+        Returns a flat dict of attribute name -> value, e.g. {'name': 'John Doe', 'email': '...'}.
+        """
+        try:
+            response = self.client.get_user(AccessToken=access_token)
+            return {
+                attr["Name"]: attr["Value"]
+                for attr in response.get("UserAttributes", [])
+            }
+        except self.client.exceptions.NotAuthorizedException:
+            self.logger.warning("get_user_attributes failed: invalid access token.")
+            raise NotAuthorizedError("Invalid access token.")

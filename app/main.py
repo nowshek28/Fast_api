@@ -9,12 +9,6 @@ from app.core.logging import setup_logging
 from app.core.exception_handlers import register_exception_handlers
 from app.core.middleware import register_middleware
 
-from app.database.database import engine
-from app.database.base import Base
-
-# import models so SQLAlchemy knows about them
-import app.database.models
-
 setup_logging()
 
 logger = logging.getLogger(__name__)
@@ -39,9 +33,3 @@ def root():
         "status": "running",
         "docs": "/docs",
     }
-
-@app.on_event("startup")
-def on_startup():
-    """Event handler for application startup."""
-    Base.metadata.create_all(bind=engine)
-    logger.info("Database tables verified / created successfully.")

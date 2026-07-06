@@ -1,12 +1,15 @@
-from sqlalchemy import Boolean
+from sqlalchemy import Boolean, ForeignKey
 from sqlalchemy import DateTime
 from sqlalchemy import String
-from sqlalchemy.orm import Mapped
+from sqlalchemy.orm import Mapped, relationship
 from sqlalchemy.orm import mapped_column
 from uuid import uuid4
-from datetime import datetime
+from datetime import datetime, timezone
 
 from .base import Base
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 class TodoModel(Base):
@@ -27,13 +30,60 @@ class TodoModel(Base):
         default=False
     )
 
+    user_id: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id"),
+        nullable=True
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow
+        default=_utcnow
     )
 
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
-        default=datetime.utcnow,
-        onupdate=datetime.utcnow
+        default=_utcnow,
+        onupdate=_utcnow
+    )
+
+    user: Mapped["UserModel"] = relationship(
+        "UserModel",
+        back_populates="todos"
+    )
+
+
+class UserModel(Base):
+    __tablename__ = "users"
+
+    id: Mapped[str] = mapped_column(
+        String,
+        primary_key=True,
+        default=lambda: str(uuid4())
+    )
+
+    cognito_sub: Mapped[str] = mapped_column(
+        String,
+        unique=True,
+        nullable=False
+    )
+
+    username: Mapped[str] = mapped_column(
+        String,
+        nullable=False
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=_utcnow
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=_utcnow,
+        onupdate=_utcnow
+    )
+
+    todos: Mapped[list["TodoModel"]] = relationship(
+        "TodoModel",
+        back_populates="user"
     )

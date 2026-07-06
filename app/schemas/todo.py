@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional,List
+from typing import Optional, List
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -58,6 +58,7 @@ class TodoResponse(TodoBase):
 
     id: UUID
     completed: bool
+    user_id: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 

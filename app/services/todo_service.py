@@ -14,11 +14,11 @@ class TodoService:
     def __init__(self, repository):
         self.repository = repository
 
-    def create(self, todo: TodoCreate) -> TodoResponse:
+    def create(self, todo: TodoCreate, user_id: str) -> TodoResponse:
         """
         Create a new Todo.
         """
-        logger.info(f"Creating a new todo.")
+        logger.info(f"Creating a new todo for user {user_id}.")
         now = datetime.now(timezone.utc)
 
         new_todo = TodoResponse(
@@ -26,6 +26,7 @@ class TodoService:
             title=todo.title,
             description=todo.description,
             completed=False,
+            user_id=user_id,
             created_at=now,
             updated_at=now,
         )
@@ -33,34 +34,34 @@ class TodoService:
         logger.info(f"Todo created successfully: {new_todo.id}")
         return self.repository.create(new_todo)
     
-    def get_all(self) -> list[TodoResponse]:
+    def get_all(self, user_id: str) -> list[TodoResponse]:
         """
-        Retrieve all Todos.
+        Retrieve all Todos for the given user.
         """
-        todos = self.repository.get_all()
-        logger.info(f"Retrieved {len(todos)} todos.")
+        todos = self.repository.get_all(user_id=user_id)
+        logger.info(f"Retrieved {len(todos)} todos for user {user_id}.")
         return todos
     
-    def get_by_id(self, todo_id: UUID) -> TodoResponse | None:
+    def get_by_id(self, todo_id: UUID, user_id: str) -> TodoResponse:
         """
-        Retrieve a Todo by its ID.
+        Retrieve a Todo by its ID, scoped to the given user.
         """
-        todo = self.repository.get_by_id(todo_id)
+        todo = self.repository.get_by_id(todo_id, user_id=user_id)
 
         if todo is None:
-            logger.warning(f"Todo {todo_id} not found")
+            logger.warning(f"Todo {todo_id} not found for user {user_id}")
             raise TodoNotFoundError(todo_id)
         logger.info(f"Todo {todo_id} retrieved successfully.")
         return todo
     
-    def update(self, todo_id: UUID, todo_update: TodoUpdate) -> TodoResponse | None:
+    def update(self, todo_id: UUID, todo_update: TodoUpdate, user_id: str) -> TodoResponse:
         """
-        Update an existing Todo.
+        Update an existing Todo, scoped to the given user.
         """
-        existing_todo = self.repository.get_by_id(todo_id)
+        existing_todo = self.repository.get_by_id(todo_id, user_id=user_id)
 
         if existing_todo is None:
-            logger.warning(f"Todo {todo_id} not found")
+            logger.warning(f"Todo {todo_id} not found for user {user_id}")
             raise TodoNotFoundError(todo_id)
 
         updated_todo = existing_todo.model_copy(
@@ -68,19 +69,19 @@ class TodoService:
             )
         updated_todo.updated_at = datetime.now(timezone.utc)
         logger.info(f"Todo {todo_id} updated successfully.")
-        return self.repository.update(todo_id, updated_todo)
+        return self.repository.update(todo_id, updated_todo, user_id=user_id)
     
-    def delete(self, todo_id: UUID) -> bool:
+    def delete(self, todo_id: UUID, user_id: str) -> bool:
         """
-        Delete a Todo by its ID.
+        Delete a Todo by its ID, scoped to the given user.
         """
-        existing_todo = self.repository.get_by_id(todo_id)
+        existing_todo = self.repository.get_by_id(todo_id, user_id=user_id)
 
         if existing_todo is None:
-            logger.warning(f"Todo {todo_id} not found")
+            logger.warning(f"Todo {todo_id} not found for user {user_id}")
             raise TodoNotFoundError(todo_id)
         logger.info(f"Todo {todo_id} deleted successfully.")
 
-        return self.repository.delete(todo_id)
+        return self.repository.delete(todo_id, user_id=user_id)
 
 

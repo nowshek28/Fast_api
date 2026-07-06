@@ -83,6 +83,12 @@ class FakeCognitoClient:
             raise NotAuthorizedError("Invalid access token.")
         return SignOutResponse(message="User signed out globally successfully.")
 
+    def get_user_attributes(self, access_token: str) -> dict:
+        """Return fake user attributes — no network call needed in tests."""
+        if access_token != "fake-access-token":
+            raise NotAuthorizedError("Invalid access token.")
+        return {"name": "Test User", "email": "test@example.com"}
+
 
 class FakeTodoRepository:
 
@@ -93,25 +99,30 @@ class FakeTodoRepository:
         self.todos.append(todo)
         return todo
 
-    def get_all(self):
-        return self.todos
+    def get_all(self, user_id: str = None):
+        if user_id is not None:
+            return [t for t in self.todos if t.user_id == user_id]
+        return list(self.todos)
 
-    def get_by_id(self, todo_id):
+    def get_by_id(self, todo_id, user_id: str = None):
         for todo in self.todos:
             if todo.id == todo_id:
-                return todo
+                if user_id is None or todo.user_id == user_id:
+                    return todo
         return None
 
-    def update(self, todo_id, updated_todo):
+    def update(self, todo_id, updated_todo, user_id: str = None):
         for i, todo in enumerate(self.todos):
             if todo.id == todo_id:
-                self.todos[i] = updated_todo
-                return updated_todo
+                if user_id is None or todo.user_id == user_id:
+                    self.todos[i] = updated_todo
+                    return updated_todo
         return None
 
-    def delete(self, todo_id):
+    def delete(self, todo_id, user_id: str = None):
         for i, todo in enumerate(self.todos):
             if todo.id == todo_id:
-                del self.todos[i]
-                return True
+                if user_id is None or todo.user_id == user_id:
+                    del self.todos[i]
+                    return True
         return False

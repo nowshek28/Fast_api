@@ -1,5 +1,7 @@
 from app.schemas.todo import TodoCreate
 
+FAKE_USER_ID = "test-user-id"
+
 
 def test_create_generates_uuid(service):
     """
@@ -10,7 +12,7 @@ def test_create_generates_uuid(service):
         description="Service test"
     )
 
-    created = service.create(todo)
+    created = service.create(todo, user_id=FAKE_USER_ID)
 
     assert created.id is not None
 
@@ -23,7 +25,7 @@ def test_create_sets_completed_false(service):
         description="Service test"
     )
 
-    created = service.create(todo)
+    created = service.create(todo, user_id=FAKE_USER_ID)
 
     assert created.completed is False
 
@@ -36,7 +38,7 @@ def test_create_generates_timestamps(service):
         description="Service test"
     )
 
-    created = service.create(todo)
+    created = service.create(todo, user_id=FAKE_USER_ID)
 
     assert created.created_at is not None
     assert created.updated_at is not None

@@ -3,64 +3,84 @@ from fastapi.responses import Response
 from uuid import UUID
 
 from app.schemas.todo import TodoCreate, TodoResponse, TodoUpdate
+from app.schemas.user import CurrentUserResponse
 from app.services.todo_service import TodoService
 from app.core.dependencies import get_service
+from app.auth.dependencies import get_current_db_user
 
 router = APIRouter()
 
 @router.get(
         "/todos",
         response_model=list[TodoResponse],
-        status_code=200,  # 200 OK is the correct HTTP status code for a successful GET request.
+        status_code=200,
         )
 def get_todos(
-    service: TodoService = Depends(get_service)
+    service: TodoService = Depends(get_service),
+    current_user: CurrentUserResponse = Depends(get_current_db_user),
 ):
     """
-    Get all Todos.
+    Get all Todos of the current user.
     """
-    return service.get_all()
+    return service.get_all(user_id=current_user.id)
 
 @router.post(
         "/todos",
         response_model=TodoResponse,
-        status_code=201,   #201 Created is the correct HTTP status code when a new resource is successfully created.
+        status_code=201,
         )
-def create_todo(todo: TodoCreate, service: TodoService = Depends(get_service)):
+def create_todo(
+    todo: TodoCreate,
+    service: TodoService = Depends(get_service),
+    current_user: CurrentUserResponse = Depends(get_current_db_user),
+):
     """
     Create a new Todo.
     """
-    return service.create(todo)          
+    return service.create(todo, user_id=current_user.id)
 
 @router.get(
         "/todos/{todo_id}",
         response_model=TodoResponse,
-        status_code=200,  # 200 OK is the correct HTTP status code for a successful GET request.
+        status_code=200,
         )
-def get_todo_by_id(todo_id: UUID, service: TodoService = Depends(get_service)):
+def get_todo_by_id(
+    todo_id: UUID,
+    service: TodoService = Depends(get_service),
+    current_user: CurrentUserResponse = Depends(get_current_db_user),
+):
     """
     Get a Todo by its ID.
     """
-    return service.get_by_id(todo_id)
+    return service.get_by_id(todo_id, user_id=current_user.id)
 
 @router.put(
         "/todos/{todo_id}",
         response_model=TodoResponse,
-        status_code=200,  # 200 OK is the correct HTTP status code for a successful PUT request.
+        status_code=200,
         )
-def update_todo(todo_id: UUID, todo_update: TodoUpdate, service: TodoService = Depends(get_service)):
+def update_todo(
+    todo_id: UUID,
+    todo_update: TodoUpdate,
+    service: TodoService = Depends(get_service),
+    current_user: CurrentUserResponse = Depends(get_current_db_user),
+):
     """
     Update an existing Todo.
     """
-    return service.update(todo_id, todo_update)
+    return service.update(todo_id, todo_update, user_id=current_user.id)
 
 @router.delete(
         "/todos/{todo_id}",
-        status_code=status.HTTP_204_NO_CONTENT,  # 204 No Content is the correct HTTP status code when a resource is successfully deleted.
+        status_code=status.HTTP_204_NO_CONTENT,
         )
-def delete_todo(todo_id: UUID, service: TodoService = Depends(get_service)):
+def delete_todo(
+    todo_id: UUID,
+    service: TodoService = Depends(get_service),
+    current_user: CurrentUserResponse = Depends(get_current_db_user),
+):
     """
     Delete a Todo by its ID.
     """
-    service.delete(todo_id)
+    service.delete(todo_id, user_id=current_user.id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

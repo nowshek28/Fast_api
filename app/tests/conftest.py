@@ -1,5 +1,6 @@
 import pytest
 
+from datetime import datetime, timezone
 from sqlalchemy import create_engine, delete as sql_delete
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -14,6 +15,8 @@ from app.main import app
 from app.database.base import Base
 from app.database.models import TodoModel
 from app.core.dependencies import get_db
+from app.auth.dependencies import get_current_db_user
+from app.schemas.user import CurrentUserResponse
 
 
 # ---------------------------------------------------------------------------
@@ -29,6 +32,16 @@ _test_engine = create_engine(
 )
 Base.metadata.create_all(bind=_test_engine)
 _TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=_test_engine)
+
+# A stable fake user injected into every API test request.
+FAKE_USER_ID = "00000000-0000-0000-0000-000000000001"
+_fake_user = CurrentUserResponse(
+    id=FAKE_USER_ID,
+    cognito_sub="fake-user-sub-uuid",
+    username="Test User",
+    created_at=datetime(2024, 1, 1, tzinfo=timezone.utc),
+    updated_at=datetime(2024, 1, 1, tzinfo=timezone.utc),
+)
 
 
 @pytest.fixture
@@ -54,12 +67,12 @@ def service():
 @pytest.fixture
 def client():
     """
-    TestClient wired to an in-memory SQLite database.
+    TestClient wired to an in-memory SQLite database with auth bypassed.
 
     - The production PostgreSQL database is never read or written.
+    - get_current_db_user is overridden to return a stable fake user so that
+      every authenticated todo endpoint works without real JWTs or Cognito.
     - Each test starts with a clean table (all rows are deleted on teardown).
-    - The SQLite schema is built from the same SQLAlchemy models as production,
-      so the structure is identical.
     """
     session = _TestingSessionLocal()
 
@@ -67,15 +80,11 @@ def client():
         yield session
 
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_current_db_user] = lambda: _fake_user
 
-    # Do NOT use 'with TestClient(app)' here — the context manager triggers
-    # FastAPI's on_startup event, which calls Base.metadata.create_all(engine)
-    # against the real PostgreSQL database. Yielding TestClient directly skips
-    # startup/shutdown lifecycle events entirely, keeping tests fully offline.
     yield TestClient(app)
 
     # Teardown: clear all rows so the next test starts with an empty database.
-    # This only affects the in-memory SQLite database, not PostgreSQL.
     session.rollback()
     session.execute(sql_delete(TodoModel))
     session.commit()

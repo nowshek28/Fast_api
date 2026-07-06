@@ -9,9 +9,10 @@ A production-inspired REST API for managing todo items, built with **FastAPI** a
 | Version | Storage Backend | Description |
 |---|---|---|
 | **v1.0** | JSON file | Local JSON file persistence. Simple, zero-setup storage. |
-| **v2.0** | PostgreSQL on AWS RDS | Production-grade relational database. SQLAlchemy ORM, connection pooling, cloud-hosted on Amazon RDS. Alembic migrations for safe schema changes. Isolated SQLite test database. |
+| **v1.1** | PostgreSQL on AWS RDS | Production-grade relational database. SQLAlchemy ORM, connection pooling, cloud-hosted on Amazon RDS. Alembic migrations for safe schema changes. Isolated SQLite test database. |
+| **v1.2** | PostgreSQL + AWS Cognito | Added **authentication & authorization** via AWS Cognito + JWT. Multi-user support with user isolation. User registration, login, token refresh, global sign-out. Auto-creates user records on first login. |
 
-> **Current version: v2.0 — PostgreSQL AWS Database**
+> **Current version: v1.2 — Multi-user with AWS Cognito Authentication**
 
 ---
 
@@ -30,7 +31,17 @@ A production-inspired REST API for managing todo items, built with **FastAPI** a
 
 ## Overview
 
-This API provides full **CRUD** (Create, Read, Update, Delete) operations for todo items. Data is persisted in a **PostgreSQL database hosted on AWS RDS**, replacing the original JSON file storage. The codebase is intentionally structured to mirror real-world production patterns — layered concerns, dependency injection, custom exception handling, request logging, and a comprehensive test suite.
+This API provides full **CRUD** (Create, Read, Update, Delete) operations for todo items with **multi-user support and JWT-based authentication**. Data is persisted in a **PostgreSQL database hosted on AWS RDS**. User authentication is handled by **AWS Cognito** with secure JWT token verification.
+
+**Key features:**
+- 🔐 **AWS Cognito authentication** — user sign-up, confirmation, login, token refresh, global sign-out
+- 🔑 **JWT authorization** — every todo endpoint requires a valid access token
+- 👤 **Multi-user isolation** — users can only see and modify their own todos
+- 🗄️ **PostgreSQL + Alembic migrations** — production-grade database with version-controlled schema changes
+- 🧪 **Comprehensive test suite** — 52 tests covering API, service, repository, and auth layers
+- 📝 **Request logging & middleware** — structured logs for every request
+
+The codebase is intentionally structured to mirror real-world production patterns — layered concerns, dependency injection, custom exception handling, and isolated test environments.
 
 ![FastAPI Production](FastAPI_production.PNG)
 
@@ -45,6 +56,11 @@ This API provides full **CRUD** (Create, Read, Update, Delete) operations for to
 | SQLAlchemy | ORM and database session management |
 | psycopg2-binary | PostgreSQL driver |
 | AWS RDS (PostgreSQL) | Cloud-hosted relational database |
+| **AWS Cognito** | **User authentication & user pool management** |
+| **boto3** | **AWS SDK for Python (Cognito integration)** |
+| **PyJWT** | **JWT token decoding and verification** |
+| **python-jose** | **JWT signature validation (JWKS)** |
+| **requests** | **HTTP client for JWKS endpoint** |
 | Alembic | Database migration tool |
 | Pytest 9.1 | Testing framework |
 | HTTPX | HTTP client for testing |
@@ -55,35 +71,47 @@ This API provides full **CRUD** (Create, Read, Update, Delete) operations for to
 
 ```
 app/
-├── main.py                           # FastAPI app factory, startup event (creates DB tables)
+├── main.py                           # FastAPI app factory (no startup event — Alembic owns schema)
 │
 ├── api/
 │   └── v1/
 │       ├── router.py                 # Combines all v1 route groups
 │       └── routes/
 │           ├── health.py             # GET /api/v1/health
-│           └── todos.py              # Todo CRUD endpoints
+│           └── todos.py              # Todo CRUD endpoints (requires auth)
+│
+├── auth/
+│   ├── cognito.py                    # AWS Cognito client (sign-up, login, token refresh, sign-out)
+│   ├── jwt_verifier.py               # JWT verification (downloads JWKS, validates signatures)
+│   ├── dependencies.py               # get_current_user, get_current_db_user
+│   ├── exceptions.py                 # Auth-specific exceptions
+│   ├── router.py                     # /auth endpoints (signup, confirm, login, refresh, sign-out)
+│   ├── schemas.py                    # TokenClaims, LoginRequest/Response, etc.
+│   └── service.py                    # Auth service layer
 │
 ├── core/
 │   ├── config.py                     # Settings loaded from .env (pydantic-settings)
 │   ├── dependencies.py               # FastAPI dependency injection chain
 │   ├── exception_handlers.py         # Maps custom exceptions to HTTP responses
 │   ├── logging.py                    # Logging configuration
-│   └── middleware.py                 # Request/response timing and logging
+│   └── middleware.py                 # Request/response timing, logging, security headers
 │
 ├── database/
 │   ├── base.py                       # SQLAlchemy DeclarativeBase
 │   ├── database.py                   # Engine, SessionLocal, get_db() dependency
-│   └── models.py                     # TodoModel ORM table definition
+│   └── models.py                     # TodoModel + UserModel ORM definitions
 │
 ├── schemas/
-│   └── todo.py                       # Pydantic models (request/response shapes)
+│   ├── todo.py                       # Todo Pydantic models (includes user_id)
+│   └── user.py                       # User Pydantic models (UserCreate, CurrentUserResponse)
 │
 ├── services/
-│   └── todo_service.py               # Business logic (UUID, timestamps, validation)
+│   ├── todo_service.py               # Todo business logic (now user-scoped)
+│   └── user_service.py               # User business logic (get_or_create on first login)
 │
 ├── repositories/
-│   ├── postgres_todo_repository.py   # PostgreSQL CRUD via SQLAlchemy
+│   ├── postgres_todo_repository.py   # Todo CRUD with user_id filtering
+│   ├── postgres_user_repository.py   # User CRUD via Cognito sub lookup
 │   └── json_todo_repository.py       # Legacy JSON CRUD (retained for reference)
 │
 ├── storage/
@@ -93,9 +121,10 @@ app/
 │   └── todo.py                       # TodoNotFoundError custom exception
 │
 ├── tests/
-│   ├── conftest.py                   # Pytest fixtures (SQLite in-memory test DB)
-│   ├── fakes.py                      # FakeTodoRepository for unit tests
+│   ├── conftest.py                   # Pytest fixtures (SQLite in-memory, auth bypass)
+│   ├── fakes.py                      # FakeTodoRepository, FakeCognitoClient, FakeJWTVerifier
 │   ├── test_api.py                   # API integration tests (SQLite, isolated)
+│   ├── test_auth.py                  # Auth endpoint tests (fake Cognito)
 │   ├── test_service.py               # Service unit tests (in-memory fake)
 │   ├── test_repository.py            # JSON repository unit tests
 │   └── test_storage.py               # JSON storage tests
@@ -104,7 +133,8 @@ migrations/
 ├── env.py                            # Alembic environment (reads DATABASE_URL from .env)
 ├── script.py.mako                    # Migration file template
 └── versions/
-    └── 20260703_0637_fabbfc95d6f4_initial_schema.py  # Baseline revision
+    ├── 20260703_0637_fabbfc95d6f4_initial_schema.py              # Baseline: todos table
+    └── 20260707_0325_d463e870d8f6_add_users_table_and_user_relationship.py  # Users + FK
 alembic.ini                           # Alembic configuration
 ```
 
@@ -112,39 +142,84 @@ alembic.ini                           # Alembic configuration
 
 ## Architecture
 
-The app follows a **layered architecture** — each layer has a single responsibility and communicates only with the layer directly below it.
+The app follows a **layered architecture** with **JWT-based authentication** — each layer has a single responsibility and communicates only with the layer directly below it.
 
 ```
-HTTP Request
+HTTP Request + JWT Bearer Token
      │
      ▼
-  Routes          — Handle HTTP: parse input, return responses, set status codes
+Auth Layer      — Verify JWT, lookup/create user in DB
      │
      ▼
-  Services        — Business logic: generate IDs, set timestamps, enforce rules
+  Routes        — Handle HTTP: parse input, return responses, inject current_user
      │
      ▼
-  Repositories    — Data access: CRUD operations via SQLAlchemy ORM
+  Services      — Business logic: enforce user ownership, generate IDs, set timestamps
      │
      ▼
-  Database        — PostgreSQL on AWS RDS (managed via SQLAlchemy sessions)
+  Repositories  — Data access: CRUD operations with user_id filtering via SQLAlchemy ORM
+     │
+     ▼
+  Database      — PostgreSQL on AWS RDS (todos + users tables)
 ```
 
-**Dependency injection** wires these layers together at runtime via FastAPI's `Depends()` system, defined in `core/dependencies.py`:
+**Dependency injection** wires these layers together at runtime via FastAPI's `Depends()` system, defined in `core/dependencies.py` and `auth/dependencies.py`:
 
 ```
-get_service
-  └── get_postgres_repository
-        └── get_db  →  SessionLocal()  →  AWS RDS PostgreSQL
+get_current_db_user  →  get_current_user  →  verify JWT  →  AWS Cognito JWKS
+     │
+     └── get_user_service  →  get_user_repository  →  get_db  →  PostgreSQL
+             │
+             ▼
+         get_service  →  get_postgres_repository  →  get_db  →  PostgreSQL
 ```
 
-This makes each layer independently testable — integration tests override `get_db` with a test session that cleans up after itself, while unit tests swap the repository entirely for an in-memory `FakeTodoRepository`.
+This makes each layer independently testable:
+- **Integration tests** override `get_db` with an in-memory SQLite session and `get_current_db_user` with a fake user
+- **Unit tests** swap repositories entirely for in-memory fakes (`FakeTodoRepository`, `FakeCognitoClient`)
 
 ---
 
 ## API Endpoints
 
 Base URL prefix: `/api/v1`
+
+### Authentication
+
+All authentication endpoints are prefixed with `/auth` and **do not require a Bearer token** (they are used to obtain tokens).
+
+| Method | Path | Description | Success Status |
+|---|---|---|---|
+| POST | `/auth/signup` | Register a new user | 200 |
+| POST | `/auth/confirm-signup` | Confirm email with 6-digit code | 200 |
+| POST | `/auth/login` | Authenticate and receive tokens | 200 |
+| POST | `/auth/refresh-token` | Get new access token using refresh token | 200 |
+| GET | `/auth/verify-token` | Verify a JWT token (for debugging) | 200 |
+| POST | `/auth/global-sign-out` | Sign out globally (invalidate all sessions) | 200 |
+
+**Sign-up request:**
+```json
+{
+  "email": "user@example.com",
+  "password": "SecurePass1!",
+  "name": "John Doe"
+}
+```
+
+**Login response:**
+```json
+{
+  "access_token": "eyJraWQiOiI...",
+  "id_token": "eyJraWQiOiI...",
+  "refresh_token": "eyJjdHkiOiI...",
+  "expires_in": 3600,
+  "token_type": "Bearer"
+}
+```
+
+> **Note:** After login, include the `access_token` in all `/api/v1/todos` requests via the `Authorization: Bearer <token>` header.
+
+---
 
 ### Health
 
@@ -161,19 +236,22 @@ Base URL prefix: `/api/v1`
 
 ### Todos
 
+**⚠️ All todo endpoints require authentication** — you must include a valid JWT access token in the `Authorization: Bearer <token>` header.
+
 | Method | Path | Description | Success Status |
 |---|---|---|---|
-| GET | `/api/v1/todos` | List all todos | 200 |
+| GET | `/api/v1/todos` | List all todos **for the authenticated user** | 200 |
 | POST | `/api/v1/todos` | Create a new todo | 201 |
-| GET | `/api/v1/todos/{todo_id}` | Get a todo by UUID | 200 |
-| PUT | `/api/v1/todos/{todo_id}` | Update a todo (partial) | 200 |
-| DELETE | `/api/v1/todos/{todo_id}` | Delete a todo | 204 |
+| GET | `/api/v1/todos/{todo_id}` | Get a todo by UUID (user-scoped) | 200 |
+| PUT | `/api/v1/todos/{todo_id}` | Update a todo (user-scoped) | 200 |
+| DELETE | `/api/v1/todos/{todo_id}` | Delete a todo (user-scoped) | 204 |
 
 #### Error Responses
 
 | Scenario | Status | Body |
 |---|---|---|
-| Todo not found | 404 | `{"detail": "Todo with id '...' was not found."}` |
+| Missing or invalid token | 401 | `{"detail": "Invalid or expired token."}` |
+| Todo not found (or belongs to another user) | 404 | `{"detail": "Todo with id '...' was not found."}` |
 | Invalid UUID format | 422 | Pydantic validation error |
 | Invalid request body | 422 | Pydantic validation error |
 
@@ -206,6 +284,7 @@ All fields are optional — send only the fields you want to change.
 | `title` | `string` |
 | `description` | `string \| null` |
 | `completed` | `boolean` |
+| `user_id` | `string \| null` |
 | `created_at` | `datetime (UTC)` |
 | `updated_at` | `datetime (UTC)` |
 
@@ -247,10 +326,16 @@ Create a `.env` file in the project root:
 
 ```env
 APP_NAME=ToDo API
-APP_VERSION=2.0.0
+APP_VERSION=1.2.0
 DEBUG=True
 DATA_FILE=app/data/todo.json
 DATABASE_URL=postgresql+psycopg2://<user>:<password>@<host>:<port>/<database>
+
+# AWS Cognito settings
+AWS_REGION=us-east-1
+COGNITO_USER_POOL_ID=us-east-1_XXXXXXXXX
+COGNITO_CLIENT_ID=xxxxxxxxxxxxxxxxxxxxxxxxxx
+COGNITO_CLIENT_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
 | Variable | Description |
@@ -258,10 +343,14 @@ DATABASE_URL=postgresql+psycopg2://<user>:<password>@<host>:<port>/<database>
 | `APP_NAME` | Name shown in API metadata |
 | `APP_VERSION` | Version shown in API metadata |
 | `DEBUG` | Enables debug mode |
-| `DATA_FILE` | Path to legacy JSON file (unused in v2, kept for reference) |
+| `DATA_FILE` | Path to legacy JSON file (unused in v1.2, kept for reference) |
 | `DATABASE_URL` | Full SQLAlchemy connection string to your PostgreSQL database |
+| `AWS_REGION` | AWS region where your Cognito User Pool is hosted |
+| `COGNITO_USER_POOL_ID` | Your Cognito User Pool ID |
+| `COGNITO_CLIENT_ID` | Your Cognito App Client ID |
+| `COGNITO_CLIENT_SECRET` | Your Cognito App Client Secret |
 
-> **First-time setup:** run `alembic upgrade head` after configuring `.env` to create all tables via the migration history. See the [Database Migrations](#database-migrations) section below.
+> **First-time setup:** run `alembic upgrade head` after configuring `.env` to create all tables (including `users` and `todos`) via the migration history. See the [Database Migrations](#database-migrations) section below.
 
 ### Running the Server
 
@@ -270,11 +359,6 @@ uvicorn app.main:app --reload
 ```
 
 The API will be available at `http://localhost:8000`.
-
-On startup you will see a log line confirming the database is ready:
-```
-INFO | app.main | Database tables verified / created successfully.
-```
 
 Interactive docs are served automatically at:
 - **Swagger UI:** `http://localhost:8000/docs`
@@ -291,6 +375,9 @@ Schema changes are managed with **Alembic**. Every change to a model column is c
 | Revision | Description |
 |---|---|
 | `fabbfc95d6f4` | `initial_schema` — baseline for the `todos` table |
+| `d463e870d8f6` | `add_users_table_and_user_relationship` — adds `users` table and `user_id` FK to `todos` |
+
+> **Note:** The `user_id` column in the `todos` table is nullable to preserve existing todos created before multi-user support was added. New todos always have a `user_id` enforced by the application layer.
 
 ### Common commands
 
