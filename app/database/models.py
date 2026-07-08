@@ -35,6 +35,16 @@ class TodoModel(Base):
         nullable=True
     )
 
+    priority: Mapped[str | None] = mapped_column(
+        String,
+        default="medium"
+    )
+
+    category: Mapped[str | None] = mapped_column(
+        String,
+        default="other"
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         default=_utcnow

@@ -9,7 +9,9 @@ def test_create_generates_uuid(service):
     """
     todo = TodoCreate(
         title="Learn FastAPI",
-        description="Service test"
+        description="Service test",
+        priority="medium",
+        category="other"
     )
 
     created = service.create(todo, user_id=FAKE_USER_ID)
@@ -22,7 +24,9 @@ def test_create_sets_completed_false(service):
     """
     todo = TodoCreate(
         title="Learn FastAPI",
-        description="Service test"
+        description="Service test",
+        priority="medium",
+        category="other"
     )
 
     created = service.create(todo, user_id=FAKE_USER_ID)
@@ -35,7 +39,9 @@ def test_create_generates_timestamps(service):
     """
     todo = TodoCreate(
         title="Learn FastAPI",
-        description="Service test"
+        description="Service test",
+        priority="medium",
+        category="other"
     )
 
     created = service.create(todo, user_id=FAKE_USER_ID)

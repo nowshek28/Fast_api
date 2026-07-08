@@ -3,7 +3,8 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.database.models import TodoModel
-from app.schemas.todo import TodoResponse
+from app.exceptions.todo import TodoResponseValidationError
+from app.schemas.todo import TodoResponse, ToDoPriority, ToDoCategory
 
 
 class PostgresTodoRepository:
@@ -22,6 +23,8 @@ class PostgresTodoRepository:
             description=model.description,
             completed=model.completed,
             user_id=model.user_id,
+            priority=model.priority,
+            category=model.category,
             created_at=model.created_at,
             updated_at=model.updated_at,
         )
@@ -37,6 +40,23 @@ class PostgresTodoRepository:
         if model is None:
             return None
         return self._to_response(model)
+    
+    def get_by_completed(self, completed: bool, user_id: str) -> list[TodoResponse]:
+        """Retrieve all Todo items for a specific user with a specific completed status from the database."""
+        models = self.db.query(TodoModel).filter(TodoModel.completed == completed, TodoModel.user_id == user_id).all()
+        return [self._to_response(m) for m in models]
+    
+    def get_by_priority(self, priority: ToDoPriority, user_id: str) -> list[TodoResponse]:
+        """Retrieve all Todo items for a specific user with a specific priority from the database.
+        IF response is empty, call TodoResponseValidationError exception handler to return a 422 error with a message indicating that the priority is invalid."""
+        models = self.db.query(TodoModel).filter(TodoModel.priority == priority, TodoModel.user_id == user_id).all()
+        return [self._to_response(m) for m in models]
+    
+    def get_by_category(self, category: ToDoCategory, user_id: str) -> list[TodoResponse]:
+        """Retrieve all Todo items for a specific user with a specific category from the database.
+        IF response is empty, call TodoResponseValidationError exception handler to return a 422 error with a message indicating that the category is invalid."""
+        models = self.db.query(TodoModel).filter(TodoModel.category == category, TodoModel.user_id == user_id).all()
+        return [self._to_response(m) for m in models]
 
     def create(self, todo: TodoResponse) -> TodoResponse:
         """Create a new Todo item in the database."""
@@ -46,6 +66,8 @@ class PostgresTodoRepository:
             description=todo.description,
             completed=todo.completed,
             user_id=todo.user_id,
+            priority=todo.priority,
+            category=todo.category,
             created_at=todo.created_at,
             updated_at=todo.updated_at,
         )
@@ -63,7 +85,9 @@ class PostgresTodoRepository:
         # Check if the title, description, or completed status has changed before updating
         if (model.title == updated_todo.title and
             model.description == updated_todo.description and
-            model.completed == updated_todo.completed
+            model.completed == updated_todo.completed and
+            model.priority == updated_todo.priority and
+            model.category == updated_todo.category
         ):
             return self._to_response(model)  # No changes, return the existing model
         
@@ -77,6 +101,11 @@ class PostgresTodoRepository:
         if model.completed != updated_todo.completed:
             model.completed = updated_todo.completed
 
+        if model.priority != updated_todo.priority:
+            model.priority = updated_todo.priority
+
+        if model.category != updated_todo.category:
+            model.category = updated_todo.category
 
         model.updated_at = updated_todo.updated_at
 

@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from uuid import UUID, uuid4
 import logging
 
-from app.schemas.todo import TodoCreate, TodoResponse, TodoUpdate
+from app.schemas.todo import ToDoPriority, ToDoCategory, TodoCreate, TodoResponse, TodoUpdate
 from app.exceptions.todo import TodoNotFoundError
 
 logger = logging.getLogger(__name__)
@@ -27,6 +27,8 @@ class TodoService:
             description=todo.description,
             completed=False,
             user_id=user_id,
+            priority=todo.priority,
+            category=todo.category,
             created_at=now,
             updated_at=now,
         )
@@ -54,6 +56,30 @@ class TodoService:
         logger.info(f"Todo {todo_id} retrieved successfully.")
         return todo
     
+    def get_by_completed(self, completed: bool, user_id: str) -> list[TodoResponse]:
+        """
+        Retrieve all Todos for the given user with a specific completed status.
+        """
+        todos = self.repository.get_by_completed(completed=completed, user_id=user_id)
+        logger.info(f"Retrieved {len(todos)} todos for user {user_id} with completed={completed}.")
+        return todos
+    
+    def get_by_priority(self, priority: ToDoPriority, user_id: str) -> list[TodoResponse]:
+        """
+        Retrieve all Todos for the given user with a specific priority.
+        """
+        todos = self.repository.get_by_priority(priority=priority, user_id=user_id)
+        logger.info(f"Retrieved {len(todos)} todos for user {user_id} with priority={priority}.")
+        return todos
+    
+    def get_by_category(self, category: ToDoCategory, user_id: str) -> list[TodoResponse]:
+        """
+        Retrieve all Todos for the given user with a specific category.
+        """
+        todos = self.repository.get_by_category(category=category, user_id=user_id)
+        logger.info(f"Retrieved {len(todos)} todos for user {user_id} with category={category}.")
+        return todos
+
     def update(self, todo_id: UUID, todo_update: TodoUpdate, user_id: str) -> TodoResponse:
         """
         Update an existing Todo, scoped to the given user.

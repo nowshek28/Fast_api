@@ -1,9 +1,19 @@
 from datetime import datetime
+import enum
 from typing import Optional, List
 from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+class ToDoPriority(str, enum.Enum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+
+class ToDoCategory(str, enum.Enum):
+    WORK = "work"
+    PERSONAL = "personal"
+    OTHER = "other"
 
 class TodoBase(BaseModel):
     """
@@ -21,6 +31,16 @@ class TodoBase(BaseModel):
         default=None,
         max_length=500,
         description="Optional description of the todo item"
+    )
+
+    priority: ToDoPriority = Field(
+        default=ToDoPriority.MEDIUM,
+        description="Priority of the todo item"
+    )
+
+    category: ToDoCategory = Field(
+        default=ToDoCategory.OTHER,
+        description="Category of the todo item"
     )
 
 
@@ -50,6 +70,10 @@ class TodoUpdate(BaseModel):
 
     completed: Optional[bool] = None
 
+    priority: Optional[ToDoPriority] = None
+
+    category: Optional[ToDoCategory] = None
+
 
 class TodoResponse(TodoBase):
     """
@@ -59,6 +83,8 @@ class TodoResponse(TodoBase):
     id: UUID
     completed: bool
     user_id: Optional[str] = None
+    priority: Optional[ToDoPriority] = None
+    category: Optional[ToDoCategory] = None
     created_at: datetime
     updated_at: datetime
 

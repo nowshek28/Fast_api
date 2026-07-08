@@ -11,8 +11,9 @@ A production-inspired REST API for managing todo items, built with **FastAPI** a
 | **v1.0** | JSON file | Local JSON file persistence. Simple, zero-setup storage. |
 | **v1.1** | PostgreSQL on AWS RDS | Production-grade relational database. SQLAlchemy ORM, connection pooling, cloud-hosted on Amazon RDS. Alembic migrations for safe schema changes. Isolated SQLite test database. |
 | **v1.2** | PostgreSQL + AWS Cognito | Added **authentication & authorization** via AWS Cognito + JWT. Multi-user support with user isolation. User registration, login, token refresh, global sign-out. Auto-creates user records on first login. |
+| **v1.3** | PostgreSQL + AWS Cognito | Extended the Todo domain with **Priority** and **Category** support. Added enum-based validation, filtering endpoints, schema migration, repository/service updates, and expanded automated test coverage. |
 
-> **Current version: v1.2 — Multi-user with AWS Cognito Authentication**
+> **Current version: v1.3 — Enhanced Todo Management with Priority & Category Filtering**
 
 ---
 
@@ -34,11 +35,14 @@ A production-inspired REST API for managing todo items, built with **FastAPI** a
 This API provides full **CRUD** (Create, Read, Update, Delete) operations for todo items with **multi-user support and JWT-based authentication**. Data is persisted in a **PostgreSQL database hosted on AWS RDS**. User authentication is handled by **AWS Cognito** with secure JWT token verification.
 
 **Key features:**
+
 - 🔐 **AWS Cognito authentication** — user sign-up, confirmation, login, token refresh, global sign-out
 - 🔑 **JWT authorization** — every todo endpoint requires a valid access token
 - 👤 **Multi-user isolation** — users can only see and modify their own todos
-- 🗄️ **PostgreSQL + Alembic migrations** — production-grade database with version-controlled schema changes
-- 🧪 **Comprehensive test suite** — 52 tests covering API, service, repository, and auth layers
+- 🏷️ **Priority & Category support** — enum-based fields with request validation
+- 🔍 **Filtering endpoints** — retrieve todos by completion status, priority, or category
+- 🗄️ **PostgreSQL + Alembic migrations** — production-grade database with version-controlled schema evolution
+- 🧪 **Comprehensive test suite** — 60 automated tests covering API, authentication, service, repository, and storage layers
 - 📝 **Request logging & middleware** — structured logs for every request
 
 The codebase is intentionally structured to mirror real-world production patterns — layered concerns, dependency injection, custom exception handling, and isolated test environments.
@@ -78,7 +82,7 @@ app/
 │       ├── router.py                 # Combines all v1 route groups
 │       └── routes/
 │           ├── health.py             # GET /api/v1/health
-│           └── todos.py              # Todo CRUD endpoints (requires auth)
+│           └── todos.py              # Todo CRUD + Filtering endpoints (requires auth)
 │
 ├── auth/
 │   ├── cognito.py                    # AWS Cognito client (sign-up, login, token refresh, sign-out)
@@ -134,7 +138,8 @@ migrations/
 ├── script.py.mako                    # Migration file template
 └── versions/
     ├── 20260703_0637_fabbfc95d6f4_initial_schema.py              # Baseline: todos table
-    └── 20260707_0325_d463e870d8f6_add_users_table_and_user_relationship.py  # Users + FK
+    ├── 20260707_0325_d463e870d8f6_add_users_table_and_user_relationship.py  # Users + FK
+    └── 20260709_0503_7e1a7423a064_addition_of_priority_category_to_todo_.py  # Users (Priority + Category)
 alembic.ini                           # Alembic configuration
 ```
 
@@ -245,6 +250,9 @@ All authentication endpoints are prefixed with `/auth` and **do not require a Be
 | GET | `/api/v1/todos/{todo_id}` | Get a todo by UUID (user-scoped) | 200 |
 | PUT | `/api/v1/todos/{todo_id}` | Update a todo (user-scoped) | 200 |
 | DELETE | `/api/v1/todos/{todo_id}` | Delete a todo (user-scoped) | 204 |
+| GET | `/api/v1/todos/completed/{completed}` | Filter todos by completion status | 200 |
+| GET | `/api/v1/todos/priority/{priority}` | Filter todos by priority | 200 |
+| GET | `/api/v1/todos/category/{category}` | Filter todos by category | 200 |
 
 #### Error Responses
 
@@ -265,6 +273,8 @@ All authentication endpoints are prefixed with `/auth` and **do not require a Be
 |---|---|---|
 | `title` | `string` | Required, 3–100 characters |
 | `description` | `string \| null` | Optional, max 500 characters |
+| `priority` | `Priority` | Required. One of: `low`, `medium`, `high` |
+| `category` | `Category` | Required. One of: `work`, `personal` |
 
 ### `TodoUpdate` (PUT request body)
 
@@ -275,6 +285,8 @@ All fields are optional — send only the fields you want to change.
 | `title` | `string \| null` |
 | `description` | `string \| null` |
 | `completed` | `boolean \| null` |
+| `priority` | `Priority \| null` |
+| `category` | `Category \| null` |
 
 ### `TodoResponse`
 
@@ -285,6 +297,8 @@ All fields are optional — send only the fields you want to change.
 | `description` | `string \| null` |
 | `completed` | `boolean` |
 | `user_id` | `string \| null` |
+| `priority` | `Priority` |
+| `category` | `Category` |
 | `created_at` | `datetime (UTC)` |
 | `updated_at` | `datetime (UTC)` |
 
@@ -376,6 +390,7 @@ Schema changes are managed with **Alembic**. Every change to a model column is c
 |---|---|
 | `fabbfc95d6f4` | `initial_schema` — baseline for the `todos` table |
 | `d463e870d8f6` | `add_users_table_and_user_relationship` — adds `users` table and `user_id` FK to `todos` |
+| `7e1a7423a064` | `addition_of_priority_category_to_todo` — adds enum-based `priority` and `category` columns to the `todos` table|
 
 > **Note:** The `user_id` column in the `todos` table is nullable to preserve existing todos created before multi-user support was added. New todos always have a `user_id` enforced by the application layer.
 
@@ -424,14 +439,15 @@ alembic upgrade head
 pytest
 ```
 
-The test suite covers four layers:
+The project currently contains **60 automated tests** covering API, authentication, business logic, repositories, and storage.
 
 | File | Layer | Approach | Database |
 |---|---|---|---|
-| `test_api.py` | API (integration) | Real `TestClient` against live app | **SQLite in-memory** (never touches PostgreSQL) |
-| `test_service.py` | Service | `FakeTodoRepository` (in-memory) | None |
-| `test_repository.py` | Repository | `JsonTodoRepository` against a temp file | None |
-| `test_storage.py` | Storage | Fixture validation | None |
+| `test_api.py` | API (integration) | CRUD, filtering endpoints, validation | SQLite in-memory |
+| `test_auth.py` | Authentication | Fake Cognito authentication flow | None |
+| `test_service.py` | Service | In-memory fake repositories | None |
+| `test_repository.py` | Repository | CRUD + filtering operations | None |
+| `test_storage.py` | Storage | Storage fixture validation | None |
 
 > Integration tests use a shared **in-memory SQLite database** built from the same SQLAlchemy models as production. The schema is identical, the production PostgreSQL database is never opened, and all rows are cleared between tests. This also makes the test suite run significantly faster (~24 s vs ~65 s over the network).
 
@@ -440,6 +456,22 @@ Run with verbose output:
 ```bash
 pytest -v
 ```
+
+---
+
+## What's New in v1.3
+
+Version **1.3** extends the Todo domain model by introducing structured task metadata and filtering capabilities.
+
+### New Features
+
+- Added **Priority** field with enum validation (`low`, `medium`, `high`)
+- Added **Category** field with enum validation (`work`, `personal`, `other`)
+- Added filtering endpoints for priority and category
+- Updated SQLAlchemy models, repositories, services, and API schemas
+- Added Alembic migration for database schema evolution
+- Expanded automated test coverage from **52** to **60** tests
+- Added validation tests for invalid enum values
 
 ---
 

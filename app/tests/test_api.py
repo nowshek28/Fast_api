@@ -30,7 +30,9 @@ def test_create_todo_success(client):
     todo_data = {
         "title": "Test Todo",
         "description": "This is a test todo item.",
-        "completed": False
+        "completed": False,
+        "priority": "medium",
+        "category": "other"
     }
     response = client.post("/api/v1/todos", json=todo_data)
 
@@ -40,6 +42,8 @@ def test_create_todo_success(client):
     assert data["description"] == todo_data["description"]
     assert data["completed"] == todo_data["completed"]
     assert data["id"] is not None
+    assert data["priority"] is not None
+    assert data["category"] is not None
     assert data["created_at"] is not None
     assert data["updated_at"] is not None
 
@@ -50,6 +54,8 @@ def test_title_too_short(client):
     todo_data = {
         "title": "Hi",  # Title is too short (less than 3 characters)
         "description": "This is a test todo item.",
+        "priority": "medium",
+        "category": "other",
         "completed": False
     }
     response = client.post("/api/v1/todos", json=todo_data)
@@ -66,6 +72,8 @@ def test_title_too_long(client):
     todo_data = {
         "title": "T" * 101,  # Title is too long (more than 100 characters)
         "description": "This is a test todo item.",
+        "priority": "medium",
+        "category": "other",
         "completed": False
     }
     response = client.post("/api/v1/todos", json=todo_data)
@@ -81,6 +89,8 @@ def test_missing_title(client):
     """
     todo_data = {
         "description": "This is a test todo item.",
+        "priority": "medium",
+        "category": "other",
         "completed": False
     }
     response = client.post("/api/v1/todos", json=todo_data)
@@ -97,6 +107,8 @@ def test_description_too_long(client):
     todo_data = {
         "title": "Test Todo",
         "description": "D" * 501,  # Description is too long (more than 500 characters)
+        "priority": "medium",
+        "category": "other",
         "completed": False
     }
     response = client.post("/api/v1/todos", json=todo_data)
@@ -117,6 +129,8 @@ def test_get_todo(client):
     todo_data = {
         "title": "Test Todo",
         "description": "This is a test todo item.",
+        "priority": "medium",
+        "category": "other",
         "completed": False
     }
     create_response = client.post("/api/v1/todos", json=todo_data)
@@ -140,6 +154,8 @@ def test_get_todo_by_id(client):
     todo_data = {
         "title": "Test Todo",
         "description": "This is a test todo item.",
+        "priority": "medium",
+        "category": "other",
         "completed": False
     }
     create_response = client.post("/api/v1/todos", json=todo_data)
@@ -174,7 +190,165 @@ def test_get_todo_not_found(client):
     data = response.json()
     assert data["detail"] == f"Todo with id '{non_existent_id}' was not found."
 
-#####################################################################################  
+##################################################################################### 
+
+def test_get_todos_by_completed(client):
+    """
+    Test retrieving todos by their completed status.
+    """
+    # Create two todo items: one completed and one not completed
+    todo_data_1 = {
+        "title": "Completed Todo",
+        "description": "This todo is completed.",
+        "priority": "medium",
+        "category": "other",
+        "completed": True
+    }
+    todo_data_2 = {
+        "title": "Not Completed Todo",
+        "description": "This todo is not completed.",
+        "priority": "medium",
+        "category": "other",
+        "completed": False
+    }
+    client.post("/api/v1/todos", json=todo_data_1)
+    client.post("/api/v1/todos", json=todo_data_2)
+
+    # Retrieve todos that are completed
+    response_completed = client.get("/api/v1/todos/completed/true")
+    assert response_completed.status_code == 200
+    todos_completed = response_completed.json()
+    assert all(todo["completed"] is True for todo in todos_completed)
+
+    # Retrieve todos that are not completed
+    response_not_completed = client.get("/api/v1/todos/completed/false")
+    assert response_not_completed.status_code == 200
+    todos_not_completed = response_not_completed.json()
+    assert all(todo["completed"] is False for todo in todos_not_completed)
+
+##################################################################################### 
+
+def test_get_todos_by_priority(client):
+    """
+    Test retrieving todos by their priority.
+    """
+    # Create three todo items with different priorities
+    todo_data_high = {
+        "title": "High Priority Todo",
+        "description": "This todo has high priority.",
+        "priority": "high",
+        "category": "other",
+        "completed": False
+    }
+    todo_data_medium = {
+        "title": "Medium Priority Todo",
+        "description": "This todo has medium priority.",
+        "priority": "medium",
+        "category": "other",
+        "completed": False
+    }
+    todo_data_low = {
+        "title": "Low Priority Todo",
+        "description": "This todo has low priority.",
+        "priority": "low",
+        "category": "other",
+        "completed": False
+    }
+    client.post("/api/v1/todos", json=todo_data_high)
+    client.post("/api/v1/todos", json=todo_data_medium)
+    client.post("/api/v1/todos", json=todo_data_low)
+
+    # Retrieve todos with high priority
+    response_high = client.get("/api/v1/todos/priority/high")
+    assert response_high.status_code == 200
+    todos_high = response_high.json()
+    assert all(todo["priority"] == "high" for todo in todos_high)
+
+    # Retrieve todos with medium priority
+    response_medium = client.get("/api/v1/todos/priority/medium")
+    assert response_medium.status_code == 200
+    todos_medium = response_medium.json()
+    assert all(todo["priority"] == "medium" for todo in todos_medium)
+
+    # Retrieve todos with low priority
+    response_low = client.get("/api/v1/todos/priority/low")
+    assert response_low.status_code == 200
+    todos_low = response_low.json()
+    assert all(todo["priority"] == "low" for todo in todos_low)
+
+def test_get_todos_by_invalid_priority(client):
+    """
+    Test retrieving todos with an invalid priority value.
+    """
+    invalid_priority = "urgent"  # This is not a valid priority
+    response = client.get(f"/api/v1/todos/priority/{invalid_priority}")
+    assert response.status_code == 422  # Unprocessable Entity
+    data = response.json()["detail"][0]
+    assert data["loc"] == ["path", "priority"]
+    assert data["type"] == "enum"  # The error type for invalid enum values
+ 
+##################################################################################### 
+
+def test_get_todos_by_category(client):
+    """
+    Test retrieving todos by their category.
+    """
+    # Create three todo items with different categories
+    todo_data_work = {
+        "title": "Work Todo",
+        "description": "This todo is for work.",
+        "priority": "medium",
+        "category": "work",
+        "completed": False
+    }
+    todo_data_personal = {
+        "title": "Personal Todo",
+        "description": "This todo is personal.",
+        "priority": "medium",
+        "category": "personal",
+        "completed": False
+    }
+    todo_data_other = {
+        "title": "Other Todo",
+        "description": "This todo is for other purposes.",
+        "priority": "medium",
+        "category": "other",
+        "completed": False
+    }
+    client.post("/api/v1/todos", json=todo_data_work)
+    client.post("/api/v1/todos", json=todo_data_personal)
+    client.post("/api/v1/todos", json=todo_data_other)
+
+    # Retrieve todos in the 'work' category
+    response_work = client.get("/api/v1/todos/category/work")
+    assert response_work.status_code == 200
+    todos_work = response_work.json()
+    assert all(todo["category"] == "work" for todo in todos_work)
+
+    # Retrieve todos in the 'personal' category
+    response_personal = client.get("/api/v1/todos/category/personal")
+    assert response_personal.status_code == 200
+    todos_personal = response_personal.json()
+    assert all(todo["category"] == "personal" for todo in todos_personal)
+
+    # Retrieve todos in the 'other' category
+    response_other = client.get("/api/v1/todos/category/other")
+    assert response_other.status_code == 200
+    todos_other = response_other.json()
+    assert all(todo["category"] == "other" for todo in todos_other)
+
+def test_get_todos_by_invalid_category(client):
+    """
+    Test retrieving todos with an invalid category value.
+    """
+    invalid_category = "hobby"  # This is not a valid category
+    response = client.get(f"/api/v1/todos/category/{invalid_category}")
+    assert response.status_code == 422  # Unprocessable Entity
+    data = response.json()["detail"][0]
+    assert data["loc"] == ["path", "category"]
+    assert data["type"] == "enum"  # The error type for invalid enum values
+
+##################################################################################### 
 
 def test_update_todo_success(client):
     """
@@ -184,6 +358,8 @@ def test_update_todo_success(client):
     todo_data = {
         "title": "Test Todo",
         "description": "This is a test todo item.",
+        "priority": "medium",
+        "category": "other",
         "completed": False
     }
     create_response = client.post("/api/v1/todos", json=todo_data)
@@ -195,6 +371,8 @@ def test_update_todo_success(client):
     updated_data = {
         "title": "Updated Test Todo",
         "description": "This is an updated test todo item.",
+        "priority": "high",
+        "category": "work",
         "completed": True
     }
     update_response = client.put(f"/api/v1/todos/{todo_id}", json=updated_data)
@@ -215,6 +393,8 @@ def test_update_todo_not_found(client):
     updated_data = {
         "title": "Updated Test Todo",
         "description": "This is an updated test todo item.",
+        "priority": "medium",
+        "category": "other",
         "completed": True
     }
     response = client.put(f"/api/v1/todos/{non_existent_id}", json=updated_data)

@@ -56,6 +56,27 @@ class JsonTodoRepository:
                 return todo
         return None
     
+    def get_by_completed(self, completed: bool) -> list[TodoResponse]:
+        """
+        Retrieve all Todo items filtered by their completion status.
+        """
+        todos = self._load_todos()
+        return [todo for todo in todos if todo.completed == completed]
+    
+    def get_by_priority(self, priority: str) -> list[TodoResponse]:
+        """
+        Retrieve all Todo items filtered by their priority.
+        """
+        todos = self._load_todos()
+        return [todo for todo in todos if todo.priority == priority]
+    
+    def get_by_category(self, category: str) -> list[TodoResponse]:
+        """
+        Retrieve all Todo items filtered by their category.
+        """
+        todos = self._load_todos()
+        return [todo for todo in todos if todo.category == category]
+    
     def update(self, todo_id: UUID, updated_todo: TodoResponse) -> TodoResponse | None:
         """
         Update an existing Todo item.

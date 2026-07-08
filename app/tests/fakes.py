@@ -110,6 +110,21 @@ class FakeTodoRepository:
                 if user_id is None or todo.user_id == user_id:
                     return todo
         return None
+    
+    def get_by_completed(self, completed: bool, user_id: str = None):
+        if user_id is not None:
+            return [t for t in self.todos if t.completed == completed and t.user_id == user_id]
+        return [t for t in self.todos if t.completed == completed]
+    
+    def get_by_title(self, title: str, user_id: str = None):
+        if user_id is not None:
+            return [t for t in self.todos if t.title == title and t.user_id == user_id]
+        return [t for t in self.todos if t.title == title]
+    
+    def get_by_category(self, category: str, user_id: str = None):
+        if user_id is not None:
+            return [t for t in self.todos if t.category == category and t.user_id == user_id]
+        return [t for t in self.todos if t.category == category]
 
     def update(self, todo_id, updated_todo, user_id: str = None):
         for i, todo in enumerate(self.todos):
