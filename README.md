@@ -12,8 +12,9 @@ A production-inspired REST API for managing todo items, built with **FastAPI** a
 | **v1.1** | PostgreSQL on AWS RDS | Production-grade relational database. SQLAlchemy ORM, connection pooling, cloud-hosted on Amazon RDS. Alembic migrations for safe schema changes. Isolated SQLite test database. |
 | **v1.2** | PostgreSQL + AWS Cognito | Added **authentication & authorization** via AWS Cognito + JWT. Multi-user support with user isolation. User registration, login, token refresh, global sign-out. Auto-creates user records on first login. |
 | **v1.3** | PostgreSQL + AWS Cognito | Extended the Todo domain with **Priority** and **Category** support. Added enum-based validation, filtering endpoints, schema migration, repository/service updates, and expanded automated test coverage. |
+| **v1.4** | PostgreSQL + AWS Cognito | Introduced the foundation for the AI Productivity Platform. Added Transcript domain models, database schema, repository layer, service layer, and API v2 architecture in preparation for transcript ingestion and RAG processing. |
 
-> **Current version: v1.3 — Enhanced Todo Management with Priority & Category Filtering**
+> **Current version: v1.4 — AI Productivity Platform Foundation**
 
 ---
 
@@ -32,7 +33,9 @@ A production-inspired REST API for managing todo items, built with **FastAPI** a
 
 ## Overview
 
-This API provides full **CRUD** (Create, Read, Update, Delete) operations for todo items with **multi-user support and JWT-based authentication**. Data is persisted in a **PostgreSQL database hosted on AWS RDS**. User authentication is handled by **AWS Cognito** with secure JWT token verification.
+This project is evolving from a production-inspired Todo backend into an AI Productivity Platform.
+
+Version 1.x focuses on building a production-grade backend foundation using FastAPI, PostgreSQL, AWS Cognito, SQLAlchemy, and layered architecture. Future versions extend this backend with transcript ingestion, cloud storage, Retrieval-Augmented Generation (RAG), semantic search, and AI-powered productivity features.
 
 **Key features:**
 
@@ -44,6 +47,15 @@ This API provides full **CRUD** (Create, Read, Update, Delete) operations for to
 - 🗄️ **PostgreSQL + Alembic migrations** — production-grade database with version-controlled schema evolution
 - 🧪 **Comprehensive test suite** — 60 automated tests covering API, authentication, service, repository, and storage layers
 - 📝 **Request logging & middleware** — structured logs for every request
+
+- 🚀 **AI Platform Foundation**
+
+- API versioning (v1 and v2)
+- Transcript module architecture
+- Transcript metadata management
+- Foundation for cloud file storage (Amazon S3)
+- Foundation for Retrieval-Augmented Generation (RAG)
+
 
 The codebase is intentionally structured to mirror real-world production patterns — layered concerns, dependency injection, custom exception handling, and isolated test environments.
 
@@ -78,11 +90,16 @@ app/
 ├── main.py                           # FastAPI app factory (no startup event — Alembic owns schema)
 │
 ├── api/
-│   └── v1/
-│       ├── router.py                 # Combines all v1 route groups
+│   ├── v1/
+│   │   ├── router.py                 # Combines all v1 route groups
+│   │   └── routes/
+│   │       ├── health.py             # GET /api/v1/health
+│   │       └── todos.py              # Todo CRUD + Filtering endpoints (requires auth)
+│   └── v2/
+│       ├── router.py
 │       └── routes/
-│           ├── health.py             # GET /api/v1/health
-│           └── todos.py              # Todo CRUD + Filtering endpoints (requires auth)
+│           └── transcript.py         # Transcript Upload, Delete, Search (requires auth)
+│
 │
 ├── auth/
 │   ├── cognito.py                    # AWS Cognito client (sign-up, login, token refresh, sign-out)
@@ -103,20 +120,23 @@ app/
 ├── database/
 │   ├── base.py                       # SQLAlchemy DeclarativeBase
 │   ├── database.py                   # Engine, SessionLocal, get_db() dependency
-│   └── models.py                     # TodoModel + UserModel ORM definitions
+│   └── models.py                     # TodoModel + UserModel + Transcript ORM definitions
 │
 ├── schemas/
 │   ├── todo.py                       # Todo Pydantic models (includes user_id)
-│   └── user.py                       # User Pydantic models (UserCreate, CurrentUserResponse)
+│   ├── user.py                       # User Pydantic models (UserCreate, CurrentUserResponse)
+│   └── transcript.py                 # transcript Pydantic model (TranscriptCreate, TranscriptResponse)
 │
 ├── services/
 │   ├── todo_service.py               # Todo business logic (now user-scoped)
-│   └── user_service.py               # User business logic (get_or_create on first login)
+│   ├── user_service.py               # User business logic (get_or_create on first login)
+│   └── transcript_service.py         # transcript business logic (get_or_create for todo task)
 │
 ├── repositories/
 │   ├── postgres_todo_repository.py   # Todo CRUD with user_id filtering
 │   ├── postgres_user_repository.py   # User CRUD via Cognito sub lookup
-│   └── json_todo_repository.py       # Legacy JSON CRUD (retained for reference)
+│   ├── json_todo_repository.py       # Legacy JSON CRUD (retained for reference)
+│   └── transcript_repository.py      # transcript CRD with user_id & Todo_id filtering
 │
 ├── storage/
 │   └── json_storage.py               # Legacy JSON file I/O (retained for reference)
@@ -139,7 +159,8 @@ migrations/
 └── versions/
     ├── 20260703_0637_fabbfc95d6f4_initial_schema.py              # Baseline: todos table
     ├── 20260707_0325_d463e870d8f6_add_users_table_and_user_relationship.py  # Users + FK
-    └── 20260709_0503_7e1a7423a064_addition_of_priority_category_to_todo_.py  # Users (Priority + Category)
+    ├── 20260709_0503_7e1a7423a064_addition_of_priority_category_to_todo_.py  # Users (Priority + Category)
+    └──20260710_0431_29027f8a809c_add_transcript_table.py                      # transcript table (FK todo_id)
 alembic.ini                           # Alembic configuration
 ```
 
@@ -173,10 +194,17 @@ Auth Layer      — Verify JWT, lookup/create user in DB
 ```
 get_current_db_user  →  get_current_user  →  verify JWT  →  AWS Cognito JWKS
      │
-     └── get_user_service  →  get_user_repository  →  get_db  →  PostgreSQL
+     ├── get_user_service  →  get_user_repository  →  get_db  →  PostgreSQL
+     │       │
+     │       ▼
+     │    get_service  →  get_postgres_repository  →  get_db  →  PostgreSQL
+     │ 
+     └── Todos
              │
-             ▼
-         get_service  →  get_postgres_repository  →  get_db  →  PostgreSQL
+             └── One-to-many
+                     │
+                     ▼
+               Transcript Metadata
 ```
 
 This makes each layer independently testable:
@@ -253,6 +281,10 @@ All authentication endpoints are prefixed with `/auth` and **do not require a Be
 | GET | `/api/v1/todos/completed/{completed}` | Filter todos by completion status | 200 |
 | GET | `/api/v1/todos/priority/{priority}` | Filter todos by priority | 200 |
 | GET | `/api/v1/todos/category/{category}` | Filter todos by category | 200 |
+| POST | `/api/v2/todos/{todo_id}/transcript` | Upload a new transcript for todo | 201 |
+| GET | `/api/v2/todos/{todo_id}/transcript` | Get a transcript by todo if uploaded | 200 |
+| DELETE | `/api/v2/transcripts/{transcript_id}` | Delete transcript by transcript id | 204 |
+| GET | `/api/v2/transcripts/{transcript_id}` | Get transcript by transcript id | 200 |
 
 #### Error Responses
 
@@ -391,6 +423,7 @@ Schema changes are managed with **Alembic**. Every change to a model column is c
 | `fabbfc95d6f4` | `initial_schema` — baseline for the `todos` table |
 | `d463e870d8f6` | `add_users_table_and_user_relationship` — adds `users` table and `user_id` FK to `todos` |
 | `7e1a7423a064` | `addition_of_priority_category_to_todo` — adds enum-based `priority` and `category` columns to the `todos` table|
+| `29027f8a809c` | `add_transcript_table` - adds `transcripts` table with FK from `todos` |
 
 > **Note:** The `user_id` column in the `todos` table is nullable to preserve existing todos created before multi-user support was added. New todos always have a `user_id` enforced by the application layer.
 
@@ -456,24 +489,6 @@ Run with verbose output:
 ```bash
 pytest -v
 ```
-
----
-
-## What's New in v1.3
-
-Version **1.3** extends the Todo domain model by introducing structured task metadata and filtering capabilities.
-
-### New Features
-
-- Added **Priority** field with enum validation (`low`, `medium`, `high`)
-- Added **Category** field with enum validation (`work`, `personal`, `other`)
-- Added filtering endpoints for priority and category
-- Updated SQLAlchemy models, repositories, services, and API schemas
-- Added Alembic migration for database schema evolution
-- Expanded automated test coverage from **52** to **60** tests
-- Added validation tests for invalid enum values
-
----
 
 ## License
 
