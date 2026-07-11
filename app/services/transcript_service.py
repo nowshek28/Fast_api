@@ -1,6 +1,10 @@
 import logging
 from uuid import UUID
 
+from fastapi import UploadFile
+
+
+
 from app.schemas.transcript import (
     TranscriptCreate,
     TranscriptResponse,
@@ -14,12 +18,13 @@ class TranscriptService:
     Service responsible for Transcript business logic.
     """
 
-    def __init__(self, transcript_repository, todo_repository):
+    def __init__(self, transcript_repository, todo_repository, storage_service):
         """
         Initialize the TranscriptService with the given repositories.
         """
         self.transcript_repository = transcript_repository
         self.todo_repository = todo_repository
+        self.storage_service = storage_service
 
     def _to_response(self, model) -> TranscriptResponse:
         """
@@ -35,15 +40,16 @@ class TranscriptService:
             uploaded_at=model.uploaded_at,
         )
 
-    def create(
+    async def create(
         self,
         todo_id: UUID,
-        transcript: TranscriptCreate,
+        file: UploadFile,
+        user_id: UUID,
     ) -> TranscriptResponse:
         """
         Create a transcript for a Todo.
         """
-        todo = self.todo_repository.get_by_id(todo_id)
+        todo = self.todo_repository.get_by_id(todo_id,user_id)
 
         if todo is None:
             logger.warning(
@@ -53,39 +59,35 @@ class TranscriptService:
             return None
 
 
-        if self.transcript_repository.exists_for_todo(todo_id):
+        if self.transcript_repository.exists_for_todo(todo_id,user_id):
             logger.warning(
                 "Transcript already exists for todo %s.",
                 todo_id,
             )
             return None
 
-        # --------------------------------------------------
-        # Step 3: Upload transcript to S3
-        # (Version 2.1)
-        # --------------------------------------------------
+        #Upload transcript to S3
+        try:
+            
+            s3_key, file_size = await self.storage_service.upload_transcript(
+                todo_id=todo_id,
+                file=file,
+            )
 
-        # s3_key = self.storage_service.upload_file(...)
-        #
-        # The upload should:
-        #   - Generate a unique S3 object key
-        #   - Upload the file
-        #   - Return the S3 key
-        #
-        # For now we use the provided key.
+        except Exception:
+            logger.exception(
+                "Failed to upload transcript for todo %s.",
+                todo_id,
+            )
+            raise
 
-        s3_key = transcript.s3_key
-
-        # --------------------------------------------------
-        # Step 4: Save metadata in database
-        # --------------------------------------------------
-
+        # Save transcript metadata.
         new_transcript = self.transcript_repository.create(
             todo_id=todo_id,
             s3_key=s3_key,
-            original_filename=transcript.original_filename,
-            file_type=transcript.file_type,
-            file_size=transcript.file_size,
+            original_filename=file.filename,
+            file_type=file.content_type,
+            file_size=file_size,
         )
 
         logger.info(
@@ -98,6 +100,7 @@ class TranscriptService:
     def get_by_id(
         self,
         transcript_id: UUID,
+        user_id: UUID,
     ) -> TranscriptResponse | None:
         """
         Retrieve transcript by transcript ID.
@@ -142,8 +145,12 @@ class TranscriptService:
         transcript_id: UUID,
     ) -> bool:
         """
-        Delete transcript.
+        Delete transcript from s3.
+        than from repository.
         """
+        self.storage_service.delete_transcript(
+            s3_key=self.transcript_repository.get_file_name(transcript_id)
+        )
 
         transcript = self.transcript_repository.get_by_id(
             transcript_id
@@ -156,14 +163,9 @@ class TranscriptService:
             )
             return False
 
-        # --------------------------------------------------
-        # Version 2.1
-        # Remove transcript from S3 first.
-        # --------------------------------------------------
+        
 
-        # self.storage_service.delete_file(transcript.s3_key)
-
-        self.transcript_repository.delete(transcript)
+        self.transcript_repository.delete(transcript.id)
 
         logger.info(
             "Transcript %s deleted.",

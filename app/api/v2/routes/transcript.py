@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from fastapi.responses import Response
 from uuid import UUID
 
@@ -8,6 +8,7 @@ from app.services.todo_service import TodoService
 from app.core.dependencies import get_service
 from app.auth.dependencies import get_current_db_user
 from app.core.dependencies import get_transcript_service
+from app.core.dependencies import get_s3_storage_service
 
 
 router = APIRouter()
@@ -17,8 +18,9 @@ router = APIRouter()
         response_model=TranscriptResponse,
         status_code=200,
         )
-def create_transcript_for_todo(
+async def upload_transcript(
     todo_id: UUID,
+    file: UploadFile = File(...),
     transcript_service=Depends(get_transcript_service),
     service: TodoService = Depends(get_service),
     current_user: CurrentUserResponse = Depends(get_current_db_user),
@@ -29,12 +31,22 @@ def create_transcript_for_todo(
     # Ensure the todo exists and belongs to the current user
     todo = service.get_by_id(todo_id, user_id=current_user.id)
     if not todo:
-        return Response(status_code=status.HTTP_404_NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Todo not found."
+        )
 
     # Create the transcript
-    transcript = transcript_service.create(todo_id)
+    transcript = await transcript_service.create(
+        todo_id=todo_id, 
+        file=file,
+        user_id=current_user.id)
+    
     if not transcript:
-        return Response(status_code=status.HTTP_400_BAD_REQUEST)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Failed to create transcript."
+        )
 
     return transcript
 
@@ -55,12 +67,18 @@ def get_transcript_for_todo(
     # Ensure the todo exists and belongs to the current user
     todo = service.get_by_id(todo_id, user_id=current_user.id)
     if not todo:
-        return Response(status_code=status.HTTP_404_NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Todo not found."
+        )
 
     # Get the transcript
-    transcript = transcript_service.get_by_todo_id(todo_id)
+    transcript = transcript_service.get_by_todo_id(todo_id, user_id=current_user.id)
     if not transcript:
-        return Response(status_code=status.HTTP_404_NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Transcript not found."
+        )
 
     return transcript
 
@@ -71,7 +89,6 @@ def get_transcript_for_todo(
 def delete_transcript_for_todo(
     transcript_id: UUID,
     transcript_service=Depends(get_transcript_service),
-    service: TodoService = Depends(get_service),
     current_user: CurrentUserResponse = Depends(get_current_db_user),
 ):
     """
@@ -79,15 +96,20 @@ def delete_transcript_for_todo(
     """
 
     # Get the transcript
-    transcript = transcript_service.get_by_id(transcript_id)
+    transcript = transcript_service.get_by_id(transcript_id,current_user.id)
     if not transcript:
-        return Response(status_code=status.HTTP_404_NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Transcript not found."
+        )
 
     # Delete the transcript
-    success = transcript_service.delete(transcript.id)
+    success = transcript_service.delete(transcript_id,current_user.id)
     if not success:
-        return Response(status_code=status.HTTP_400_BAD_REQUEST)
-    
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete transcript."
+        )
 
 @router.get(
         "/transcripts/{transcript_id}",
@@ -97,13 +119,17 @@ def delete_transcript_for_todo(
 def get_transcript_by_id(
     transcript_id: UUID,
     transcript_service=Depends(get_transcript_service),
+    current_user: CurrentUserResponse = Depends(get_current_db_user),
 ):
     """
     Get a transcript by its ID.
     """
-    transcript = transcript_service.get_by_id(transcript_id)
+    transcript = transcript_service.get_by_id(transcript_id, user_id=current_user.id)
     if not transcript:
-        return Response(status_code=status.HTTP_404_NOT_FOUND)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail="Transcript not found."
+        )
 
     return transcript
                                         

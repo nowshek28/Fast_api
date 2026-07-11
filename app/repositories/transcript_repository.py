@@ -58,7 +58,7 @@ class TranscriptRepository:
             .first()
         )
 
-    def exists_for_todo(self, todo_id: UUID) -> bool:
+    def exists_for_todo(self, todo_id: UUID, user_id: UUID) -> bool:
         """
         Check whether a transcript already exists for a todo.
         """
@@ -70,10 +70,24 @@ class TranscriptRepository:
             is not None
         )
 
-    def delete(self, transcript: TranscriptModel) -> None:
+    def delete(self, transcript_id: UUID) -> None:
         """
         Delete a transcript record.
         """
 
+        transcript = self.get_by_id(transcript_id)
+        if transcript is None:
+            return
+
+
         self.db.delete(transcript)
         self.db.commit()
+
+    def get_file_name(self, transcript_id: UUID) -> str | None:
+        """
+        Retrieve the original filename of a transcript by its ID.
+        """
+
+        transcript = self.get_by_id(transcript_id)
+        if transcript:
+            return transcript.s3_key
