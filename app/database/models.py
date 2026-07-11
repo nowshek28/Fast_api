@@ -30,9 +30,9 @@ class TodoModel(Base):
         default=False
     )
 
-    user_id: Mapped[str | None] = mapped_column(
+    user_id: Mapped[str] = mapped_column(
         ForeignKey("users.id"),
-        nullable=True
+        nullable=False
     )
 
     priority: Mapped[str | None] = mapped_column(
@@ -105,6 +105,11 @@ class UserModel(Base):
         back_populates="user"
     )
 
+    transcripts: Mapped[list["TranscriptModel"]] = relationship(
+        "TranscriptModel",
+        back_populates="user"
+    )
+
 
 class TranscriptModel(Base):
     __tablename__ = "transcripts"
@@ -145,6 +150,16 @@ class TranscriptModel(Base):
     uploaded_at: Mapped[datetime] = mapped_column(
         DateTime,
         default=_utcnow
+    )
+
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id"),
+        nullable=False
+    )
+
+    user: Mapped["UserModel"] = relationship(
+        "UserModel",
+        back_populates="transcripts"
     )
 
     todo: Mapped["TodoModel"] = relationship(

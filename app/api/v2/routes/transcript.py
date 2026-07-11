@@ -133,3 +133,27 @@ def get_transcript_by_id(
 
     return transcript
                                         
+
+@router.get(
+    "/transcripts/{user_id}/all_transcripts",
+    response_model=list[TranscriptResponse],
+    status_code=200,
+)
+def get_transcripts_by_user(
+    user_id: UUID,
+    transcript_service=Depends(get_transcript_service),
+    current_user: CurrentUserResponse = Depends(get_current_db_user),
+):
+    """
+    Get all transcripts for a specific user.
+    """
+
+    transcripts = transcript_service.get_by_user_id(user_id,current_user.id)
+
+    if not transcripts:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No transcripts found for this user."
+        )
+    
+    return transcripts

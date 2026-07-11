@@ -17,6 +17,7 @@ class TranscriptRepository:
         original_filename: str,
         file_type: str,
         file_size: int,
+        user_id: UUID
     ) -> TranscriptModel:
         """
         Create a new transcript record.
@@ -28,6 +29,7 @@ class TranscriptRepository:
             original_filename=original_filename,
             file_type=file_type,
             file_size=file_size,
+            user_id=str(user_id)
         )
 
         self.db.add(transcript)
@@ -36,7 +38,7 @@ class TranscriptRepository:
 
         return transcript
 
-    def get_by_id(self, transcript_id: UUID) -> TranscriptModel | None:
+    def get_by_id(self, transcript_id: UUID, user_id: UUID) -> TranscriptModel | None:
         """
         Retrieve transcript by transcript ID.
         """
@@ -44,10 +46,11 @@ class TranscriptRepository:
         return (
             self.db.query(TranscriptModel)
             .filter(TranscriptModel.id == str(transcript_id))
+            .filter(TranscriptModel.user_id == str(user_id))
             .first()
         )
 
-    def get_by_todo_id(self, todo_id: UUID) -> TranscriptModel | None:
+    def get_by_todo_id(self, todo_id: UUID, user_id: UUID) -> TranscriptModel | None:
         """
         Retrieve transcript attached to a todo.
         """
@@ -55,6 +58,7 @@ class TranscriptRepository:
         return (
             self.db.query(TranscriptModel)
             .filter(TranscriptModel.todo_id == str(todo_id))
+            .filter(TranscriptModel.user_id == str(user_id))
             .first()
         )
 
@@ -66,16 +70,17 @@ class TranscriptRepository:
         return (
             self.db.query(TranscriptModel)
             .filter(TranscriptModel.todo_id == str(todo_id))
+            .filter(TranscriptModel.user_id == str(user_id))
             .first()
             is not None
         )
 
-    def delete(self, transcript_id: UUID) -> None:
+    def delete(self, transcript_id: UUID, user_id: UUID) -> None:
         """
         Delete a transcript record.
         """
 
-        transcript = self.get_by_id(transcript_id)
+        transcript = self.get_by_id(transcript_id, user_id)
         if transcript is None:
             return
 
@@ -83,11 +88,23 @@ class TranscriptRepository:
         self.db.delete(transcript)
         self.db.commit()
 
-    def get_file_name(self, transcript_id: UUID) -> str | None:
+    def get_file_name(self, transcript_id: UUID, user_id: UUID) -> str | None:
         """
         Retrieve the original filename of a transcript by its ID.
         """
 
-        transcript = self.get_by_id(transcript_id)
+        transcript = self.get_by_id(transcript_id, user_id)
         if transcript:
             return transcript.s3_key
+        
+    def get_by_user_id(self, user_id: UUID, current_user_id: UUID) -> list[TranscriptModel]:
+        """
+        Retrieve all transcripts for a specific user.
+        """
+        if str(user_id) != str(current_user_id):
+            raise PermissionError("You do not have permission to access these transcripts.")
+        return (
+            self.db.query(TranscriptModel)
+            .filter(TranscriptModel.user_id == str(user_id))
+            .all()
+        )

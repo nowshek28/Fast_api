@@ -42,5 +42,4 @@ class TranscriptResponse(TranscriptBase):
     id: UUID
     todo_id: UUID
     uploaded_at: datetime
-
-
+    user_id: UUID

@@ -38,6 +38,7 @@ class TranscriptService:
             file_type=model.file_type,
             file_size=model.file_size,
             uploaded_at=model.uploaded_at,
+            user_id=model.user_id,
         )
 
     async def create(
@@ -88,7 +89,8 @@ class TranscriptService:
             original_filename=file.filename,
             file_type=file.content_type,
             file_size=file_size,
-        )
+            user_id=user_id
+        )   
 
         logger.info(
             "Transcript %s created successfully.",
@@ -107,7 +109,7 @@ class TranscriptService:
         """
 
         transcript = self.transcript_repository.get_by_id(
-            transcript_id
+            transcript_id, user_id
         )
 
         if transcript is None:
@@ -122,13 +124,15 @@ class TranscriptService:
     def get_by_todo_id(
         self,
         todo_id: UUID,
+        user_id: UUID,
     ) -> TranscriptResponse | None:
         """
         Retrieve transcript associated with a Todo.
         """
 
         transcript = self.transcript_repository.get_by_todo_id(
-            todo_id
+            todo_id,
+            user_id
         )
 
         if transcript is None:
@@ -143,17 +147,18 @@ class TranscriptService:
     def delete(
         self,
         transcript_id: UUID,
+        user_id: UUID,
     ) -> bool:
         """
         Delete transcript from s3.
         than from repository.
         """
         self.storage_service.delete_transcript(
-            s3_key=self.transcript_repository.get_file_name(transcript_id)
+            s3_key=self.transcript_repository.get_file_name(transcript_id, user_id)
         )
 
         transcript = self.transcript_repository.get_by_id(
-            transcript_id
+            transcript_id, user_id
         )
 
         if transcript is None:
@@ -165,7 +170,7 @@ class TranscriptService:
 
         
 
-        self.transcript_repository.delete(transcript.id)
+        self.transcript_repository.delete(transcript.id, user_id)
 
         logger.info(
             "Transcript %s deleted.",
@@ -173,3 +178,16 @@ class TranscriptService:
         )
 
         return True
+    
+    def get_by_user_id(
+        self,
+        user_id: UUID,
+        current_user_id: UUID
+    ) -> list[TranscriptResponse]:
+        """
+        Retrieve all transcripts associated with a user.
+        """
+
+        transcripts = self.transcript_repository.get_by_user_id(user_id, current_user_id)
+
+        return [self._to_response(transcript) for transcript in transcripts]
