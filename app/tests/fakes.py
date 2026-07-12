@@ -1,9 +1,9 @@
 from datetime import datetime, timezone
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from app.auth.exceptions import InvalidCredentialsError, NotAuthorizedError, UserNotConfirmedError
 from app.auth.schemas import ConfirmSignUpResponse, RefreshTokenResponse, SignOutResponse
-from app.database.models import TodoModel
+from app.database.models import TodoModel, TranscriptModel
 from app.schemas.todo import TodoResponse, TodoCreate
 
 
@@ -164,3 +164,106 @@ class FakeTodoRepository:
                     del self.todos[i]
                     return True
         return False
+
+
+class FakeTranscriptRepository:
+
+    def __init__(self):
+        self.transcripts = []
+
+    def create(
+            self,
+            *,
+            todo_id: str,
+            user_id: str,
+            s3_key: str,
+            original_file_name: str,
+            file_type: str,
+            file_size: int,
+        ) -> TranscriptModel:
+
+        transcript = TranscriptModel(
+            todo_id=todo_id,
+            user_id=user_id,
+            s3_key=s3_key,
+            original_filename=original_file_name,
+            file_type=file_type,
+            file_size=file_size
+        )
+        self.transcripts.append(transcript)
+        return transcript
+    
+    def get_by_id(
+            self,
+            transcript_id: str,
+            user_id: str
+        ) -> TranscriptModel | None:
+
+        for transcript in self.transcripts:
+            if transcript.id == transcript_id and transcript.user_id == user_id:
+                return transcript
+        return None
+    
+    def get_by_todo_id(
+            self,
+            todo_id: str,
+            user_id: str
+        ) -> TranscriptModel | None:
+
+        for transcript in self.transcripts:
+            if transcript.todo_id == todo_id and transcript.user_id == user_id:
+                return transcript
+        return None
+    
+    def exists_for_todo(
+            self,
+            todo_id: str,
+            user_id: str
+        ) -> bool:
+
+        for transcript in self.transcripts:
+            if transcript.todo_id == todo_id and transcript.user_id == user_id:
+                return True
+        return False
+    
+    def delete(
+            self,
+            transcript_id: str,
+            user_id: str
+        ) -> None:
+
+        for i, transcript in enumerate(self.transcripts):
+            if transcript.id == transcript_id and transcript.user_id == user_id:
+                del self.transcripts[i]
+                return
+            
+    def get_file_name(
+            self,
+            transcript_id: str,
+            user_id: str
+        ) -> str | None:
+
+        for transcript in self.transcripts:
+            if transcript.id == transcript_id and transcript.user_id == user_id:
+                return transcript.original_filename
+        return None
+    
+    def get_by_user_id(self, user_id: str = None):
+        if user_id is not None:
+            return [t for t in self.transcripts if t.user_id == user_id]
+        return self.transcripts
+    
+
+class FakeStorageService:
+
+    async def upload_transcript(self, todo_id, file):
+        fake_UUID = uuid4()
+        s3_key = f"{fake_UUID}.txt"
+        file_size = len(await file.read())
+        return s3_key, file_size
+
+    def delete_transcript(self, s3_key):
+        return True
+
+    def object_exists(self, s3_key):
+        return True

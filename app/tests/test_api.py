@@ -436,3 +436,373 @@ def test_delete_todo_not_found(client):
     data = response.json()
     assert data["detail"] == f"Todo with id '{non_existent_id}' was not found."
     
+
+######################################################################################
+
+def test_create_transcript_success(client):
+    """
+    Test the creation of a new transcript for a todo item.
+    """
+    # First, create a new todo item
+    todo_data = {
+        "title": "Test Todo for Transcript",
+        "description": "This is a test todo item for transcript.",
+        "completed": False,
+        "priority": "medium",
+        "category": "other"
+    }
+    create_todo_response = client.post("/api/v1/todos", json=todo_data)
+    assert create_todo_response.status_code == 201
+    created_todo = create_todo_response.json()
+    todo_id = created_todo["id"]
+
+    files ={
+        "file": (
+            "test_transcript.txt",
+            b"This is a test transcript content.",
+            "text/plain",
+        )
+    }
+    
+    create_transcript_response = client.post(
+        f"/api/v2/todos/{todo_id}/transcript", 
+        files=files,
+    )
+    assert create_transcript_response.status_code == 201
+    created_transcript = create_transcript_response.json()
+    assert created_transcript["todo_id"] == todo_id
+    assert created_transcript["original_filename"] == "test_transcript.txt"
+    assert created_transcript["file_type"] == "text/plain"
+    assert created_transcript["file_size"] == len(b"This is a test transcript content.")
+    assert created_transcript["id"] is not None
+
+def test_create_transcript_for_nonexistent_todo(client):
+    """
+    Test creating a transcript for a todo item that does not exist.
+    """
+    non_existent_todo_id = "00000000-0000-0000-0000-000000000000"
+    files = {
+        "file": (
+            "test_transcript.txt",
+            b"This is a test transcript content.",
+            "text/plain",
+        )
+    }
+    response = client.post(f"/api/v2/todos/{non_existent_todo_id}/transcript", files=files)
+    assert response.status_code == 404
+    data = response.json()
+    assert data["detail"] == f"Todo with id '{non_existent_todo_id}' was not found."
+
+def test_create_transcript_failure(client):
+    """
+    Test creating a transcript for a todo item that exists but fails to create the transcript.
+    This simulates a failure in the transcript creation process.
+    """
+    # First, create a new todo item
+    todo_data = {
+        "title": "Test Todo for Transcript Failure",
+        "description": "This is a test todo item for transcript failure.",
+        "completed": False,
+        "priority": "medium",
+        "category": "other"
+    }
+    create_todo_response = client.post("/api/v1/todos", json=todo_data)
+    assert create_todo_response.status_code == 201
+    created_todo = create_todo_response.json()
+    todo_id = created_todo["id"]
+
+    # Simulate a failure in the transcript creation process by sending an invalid file
+    files = {
+        "file": (
+            "",  # Empty filename to simulate failure
+            b"",  # Empty content
+            "text/plain",
+        )
+    }
+    
+    response = client.post(f"/api/v2/todos/{todo_id}/transcript", files=files)
+    assert response.status_code == 422
+    data = response.json()
+    assert data["detail"][0]["loc"] == ["body", "file"]
+
+def test_get_transcript_for_todo_success(client):
+    """
+    Test retrieving the transcript for a specific todo item.
+    """
+    # First, create a new todo item
+    todo_data = {
+        "title": "Test Todo for Transcript Retrieval",
+        "description": "This is a test todo item for transcript retrieval.",
+        "completed": False,
+        "priority": "medium",
+        "category": "other"
+    }
+    create_todo_response = client.post("/api/v1/todos", json=todo_data)
+    assert create_todo_response.status_code == 201
+    created_todo = create_todo_response.json()
+    todo_id = created_todo["id"]
+
+    # Upload a transcript for the created todo item
+    files = {
+        "file": (
+            "test_transcript.txt",
+            b"This is a test transcript content.",
+            "text/plain",
+        )
+    }
+
+    create_transcript_response = client.post(
+        f"/api/v2/todos/{todo_id}/transcript", 
+        files=files,
+    )
+    assert create_transcript_response.status_code == 201
+    created_transcript = create_transcript_response.json()
+    
+    got_transcript_response = client.get(
+        f"/api/v2/todos/{todo_id}/transcript",
+    )
+
+    assert got_transcript_response.status_code == 200
+    got_transcript = got_transcript_response.json()
+    assert got_transcript["todo_id"] == todo_id
+    assert got_transcript["original_filename"] == created_transcript["original_filename"]
+    assert got_transcript["s3_key"] == created_transcript["s3_key"]
+    assert got_transcript["file_type"] == created_transcript["file_type"]
+    assert got_transcript["file_size"] == created_transcript["file_size"]
+    assert got_transcript["id"] == created_transcript["id"]
+
+
+def test_get_transcript_for_todo_not_found(client):
+    """
+    Test retrieving the transcript for a todo item that does not exist.
+    """
+    non_existent_todo_id = "00000000-0000-0000-0000-000000000000"
+    response = client.get(f"/api/v2/todos/{non_existent_todo_id}/transcript")
+    assert response.status_code == 404
+    data = response.json()
+    assert data["detail"] == f"Todo with id '{non_existent_todo_id}' was not found."
+
+def test_get_transcript_for_todo_no_transcript(client):
+    """
+    Test retrieving the transcript for a todo item that exists but has no transcript.
+    """
+    # First, create a new todo item
+    todo_data = {
+        "title": "Test Todo with No Transcript",
+        "description": "This is a test todo item with no transcript.",
+        "completed": False,
+        "priority": "medium",
+        "category": "other"
+    }
+    create_todo_response = client.post("/api/v1/todos", json=todo_data)
+    assert create_todo_response.status_code == 201
+    created_todo = create_todo_response.json()
+    todo_id = created_todo["id"]
+
+    # Attempt to retrieve the transcript for the created todo item (which has no transcript)
+    response = client.get(f"/api/v2/todos/{todo_id}/transcript")
+    assert response.status_code == 404
+    data = response.json()
+    assert data["detail"] == f"Transcript not found."
+    
+def test_upload_transcript_for_nonexistent_todo(client):
+    """
+    Test uploading a transcript for a todo item that does not exist.
+    """
+    non_existent_todo_id = "00000000-0000-0000-0000-000000000000"
+    files = {
+        "file": (
+            "test_transcript.txt",
+            b"This is a test transcript content.",
+            "text/plain",
+        )
+    }
+    response = client.post(f"/api/v2/todos/{non_existent_todo_id}/transcript", files=files)
+    assert response.status_code == 404
+    data = response.json()
+    assert data["detail"] == f"Todo with id '{non_existent_todo_id}' was not found."
+
+
+def test_get_transcript_by_id_success(client):
+    """
+    Test retrieving a transcript for a specific todo item by its ID.
+    """
+    # First, create a new todo item
+    todo_data = {
+        "title": "Test Todo for Transcript Upload",
+        "description": "This is a test todo item for transcript upload.",
+        "completed": False,
+        "priority": "medium",
+        "category": "other"
+    }
+    create_todo_response = client.post("/api/v1/todos", json=todo_data)
+    assert create_todo_response.status_code == 201
+    created_todo = create_todo_response.json()
+    todo_id = created_todo["id"]
+
+    files = {
+        "file": (
+            "test_transcript.txt",
+            b"This is a test transcript content.",
+            "text/plain",
+        )
+    }
+
+    response = client.post(f"/api/v2/todos/{todo_id}/transcript", files=files)
+    assert response.status_code == 201
+    created_transcript = response.json()
+    
+    create_transcript_response = client.get(
+        f"/api/v2/transcripts/{created_transcript['id']}"
+    )
+    assert create_transcript_response.status_code == 200
+    retrieved_transcript = create_transcript_response.json()
+    assert retrieved_transcript == created_transcript
+
+def test_get_transcript_by_id_not_found(client):
+    """
+    Test retrieving a transcript by an ID that does not exist.
+    """
+    non_existent_transcript_id = "00000000-0000-0000-0000-000000000000"
+    response = client.get(f"/api/v2/transcripts/{non_existent_transcript_id}")
+    assert response.status_code == 404
+    data = response.json()
+    assert data["detail"] == f"Transcript not found."
+
+
+def test_get_transcript_by_id_invalid_uuid(client):
+    """
+    Test retrieving a transcript by an invalid ID format.
+    """
+    invalid_transcript_id = "invalid-id"
+    response = client.get(f"/api/v2/transcripts/{invalid_transcript_id}")
+    assert response.status_code == 422
+    data = response.json()
+    assert data["detail"][0]["loc"] == ["path", "transcript_id"]
+    assert "Input should be a valid UUID" in data["detail"][0]["msg"]
+
+def test_delete_transcript_success(client):
+    """
+    Test deleting a transcript for a specific todo item.
+    """
+    # First, create a new todo item
+    todo_data = {
+        "title": "Test Todo for Transcript Deletion",
+        "description": "This is a test todo item for transcript deletion.",
+        "completed": False,
+        "priority": "medium",
+        "category": "other"
+    }
+    create_todo_response = client.post("/api/v1/todos", json=todo_data)
+    assert create_todo_response.status_code == 201
+    created_todo = create_todo_response.json()
+    todo_id = created_todo["id"]
+
+    # Upload a transcript for the created todo item
+    files = {
+        "file": (
+            "test_transcript.txt",
+            b"This is a test transcript content.",
+            "text/plain",
+        )
+    }
+
+    create_transcript_response = client.post(
+        f"/api/v2/todos/{todo_id}/transcript", 
+        files=files,
+    )
+    assert create_transcript_response.status_code == 201
+    created_transcript = create_transcript_response.json()
+    transcript_id = created_transcript["id"]
+
+    # Delete the transcript
+    delete_transcript_response = client.delete(f"/api/v2/transcripts/{transcript_id}")
+    assert delete_transcript_response.status_code == 204
+
+    # Verify the transcript is deleted
+    get_transcript_response = client.get(f"/api/v2/transcripts/{transcript_id}")
+    assert get_transcript_response.status_code == 404
+    data = get_transcript_response.json()
+    assert data["detail"] == "Transcript not found."
+
+def test_delete_transcript_not_found(client):
+    """
+    Test deleting a transcript that does not exist.
+    """
+    non_existent_transcript_id = "00000000-0000-0000-0000-000000000000"
+    response = client.delete(f"/api/v2/transcripts/{non_existent_transcript_id}")
+    assert response.status_code == 404
+    data = response.json()
+    assert data["detail"] == "Transcript not found."
+
+def test_delete_transcript_invalid_uuid(client):
+    """
+    Test deleting a transcript with an invalid ID format.
+    """
+    invalid_transcript_id = "invalid-id"
+    response = client.delete(f"/api/v2/transcripts/{invalid_transcript_id}")
+    assert response.status_code == 422
+    data = response.json()
+    assert data["detail"][0]["loc"] == ["path", "transcript_id"]
+    assert "Input should be a valid UUID" in data["detail"][0]["msg"]
+
+def test_get_transcript_by_user(client):
+    """
+    Test retrieving transcripts for a specific user.
+    """
+    # First, create a new todo item
+    todo_data = {
+        "title": "Test Todo for User Transcript Retrieval",
+        "description": "This is a test todo item for user transcript retrieval.",
+        "completed": False,
+        "priority": "medium",
+        "category": "other"
+    }
+    create_todo_response = client.post("/api/v1/todos", json=todo_data)
+    assert create_todo_response.status_code == 201
+    created_todo = create_todo_response.json()
+    todo_id = created_todo["id"]
+    user_id = created_todo["user_id"]
+
+    # Upload a transcript for the created todo item
+    files = {
+        "file": (
+            "test_transcript.txt",
+            b"This is a test transcript content.",
+            "text/plain",
+        )
+    }
+
+    create_transcript_response = client.post(
+        f"/api/v2/todos/{todo_id}/transcript", files=files,
+    )
+    assert create_transcript_response.status_code == 201
+    created_transcript = create_transcript_response.json()
+
+    # Retrieve transcripts for the user
+    get_transcripts_response = client.get(f"/api/v2/transcripts/{user_id}/all_transcripts")
+    assert get_transcripts_response.status_code == 200
+    user_transcripts = get_transcripts_response.json()
+    assert any(t["id"] == created_transcript["id"] for t in user_transcripts)   
+
+def test_get_transcript_by_user_no_transcripts(client):
+    """
+    Test retrieving transcripts for a user that exists but has no transcripts.
+    """
+    # First, create a new todo item for a user
+    todo_data = {
+        "title": "Test Todo for User with No Transcripts",
+        "description": "This is a test todo item for a user with no transcripts.",
+        "completed": False,
+        "priority": "medium",
+        "category": "other"
+    }
+    create_todo_response = client.post("/api/v1/todos", json=todo_data)
+    assert create_todo_response.status_code == 201
+    created_todo = create_todo_response.json()
+    user_id = created_todo["user_id"]
+
+    # Retrieve transcripts for the user (who has no transcripts)
+    get_transcripts_response = client.get(f"/api/v2/transcripts/{user_id}/all_transcripts")
+    assert get_transcripts_response.status_code == 404
+    

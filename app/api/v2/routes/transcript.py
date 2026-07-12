@@ -16,7 +16,7 @@ router = APIRouter()
 @router.post(
         "/todos/{todo_id}/transcript",
         response_model=TranscriptResponse,
-        status_code=200,
+        status_code=201,
         )
 async def upload_transcript(
     todo_id: UUID,
@@ -149,7 +149,7 @@ def get_transcripts_by_user(
     """
 
     transcripts = transcript_service.get_by_user_id(user_id,current_user.id)
-
+    
     if not transcripts:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

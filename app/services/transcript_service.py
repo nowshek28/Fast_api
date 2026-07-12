@@ -189,5 +189,5 @@ class TranscriptService:
         """
 
         transcripts = self.transcript_repository.get_by_user_id(user_id, current_user_id)
-
+        
         return [self._to_response(transcript) for transcript in transcripts]
