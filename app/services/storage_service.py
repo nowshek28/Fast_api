@@ -149,3 +149,63 @@ class StorageService:
 
         except ClientError:
             return False
+        
+    def download_transcript(
+        self,
+        s3_key: str,
+    ) -> bytes:
+        """
+        Download transcript from S3.
+        """
+
+        try:
+
+            response = self.s3.get_object(
+                Bucket=self.bucket_name,
+                Key=s3_key,
+            )
+
+            return response['Body'].read()
+
+        except ClientError as exc:
+
+            logger.exception(
+                "Failed to download transcript."
+            )
+
+            raise RuntimeError(
+                "Transcript download failed."
+            ) from exc
+        
+    def download_transcript_to_file(
+        self,
+        s3_key: str,
+        local_path: str,
+    ) -> None:
+        """
+        Download transcript from S3 to a local file.
+        """
+
+        try:
+
+            self.s3.download_file(
+                Bucket=self.bucket_name,
+                Key=s3_key,
+                Filename=local_path,
+            )
+
+            logger.info(
+                "Downloaded transcript %s to %s.",
+                s3_key,
+                local_path,
+            )
+
+        except ClientError as exc:
+
+            logger.exception(
+                "Failed to download transcript."
+            )
+
+            raise RuntimeError(
+                "Transcript download failed."
+            ) from exc

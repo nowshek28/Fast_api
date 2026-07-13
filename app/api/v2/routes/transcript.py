@@ -135,12 +135,11 @@ def get_transcript_by_id(
                                         
 
 @router.get(
-    "/transcripts/{user_id}/all_transcripts",
+    "/transcripts/user/all_transcripts",
     response_model=list[TranscriptResponse],
     status_code=200,
 )
 def get_transcripts_by_user(
-    user_id: UUID,
     transcript_service=Depends(get_transcript_service),
     current_user: CurrentUserResponse = Depends(get_current_db_user),
 ):
@@ -148,7 +147,7 @@ def get_transcripts_by_user(
     Get all transcripts for a specific user.
     """
 
-    transcripts = transcript_service.get_by_user_id(user_id,current_user.id)
+    transcripts = transcript_service.get_by_user_id(current_user.id)
     
     if not transcripts:
         raise HTTPException(
@@ -157,3 +156,26 @@ def get_transcripts_by_user(
         )
     
     return transcripts
+
+@router.get(
+    "/transcripts/{transcript_id}/download",
+    status_code=200,
+)   
+def download_transcript(
+    transcript_id: UUID,
+    local_file_path: str,
+    transcript_service=Depends(get_transcript_service),
+    current_user: CurrentUserResponse = Depends(get_current_db_user),
+):
+    """
+    Download a transcript file by its ID.
+    """
+    # Get the S3 key for the transcript
+    local_file_path = transcript_service.get_download_transcript_file(transcript_id, local_file_path, current_user.id)
+    if not local_file_path:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Transcript not found."
+        )
+
+    return {"message": "Transcript downloaded successfully.", "file_path": local_file_path}

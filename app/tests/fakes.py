@@ -253,6 +253,12 @@ class FakeTranscriptRepository:
             return [t for t in self.transcripts if t.user_id == user_id]
         return self.transcripts
     
+    def get_download_key_orignal(self, transcript_id: str, user_id: str):
+        for transcript in self.transcripts:
+            if transcript.id == transcript_id and transcript.user_id == user_id:
+                return transcript.s3_key, transcript.original_filename
+        return (None, None)
+    
 
 class FakeStorageService:
 
@@ -266,4 +272,7 @@ class FakeStorageService:
         return True
 
     def object_exists(self, s3_key):
+        return True
+    
+    def download_transcript_to_file(self, s3_key, local_path):
         return True

@@ -97,14 +97,24 @@ class TranscriptRepository:
         if transcript:
             return transcript.s3_key
         
-    def get_by_user_id(self, user_id: UUID, current_user_id: UUID) -> list[TranscriptModel]:
+    def get_by_user_id(self, user_id: UUID) -> list[TranscriptModel]:
         """
         Retrieve all transcripts for a specific user.
         """
-        if str(user_id) != str(current_user_id):
-            raise PermissionError("You do not have permission to access these transcripts.")
         return (
             self.db.query(TranscriptModel)
             .filter(TranscriptModel.user_id == str(user_id))
             .all()
         )
+
+    def get_download_key_orignal(self, transcript_id: UUID, user_id: UUID) -> str | None:
+        """
+        Retrieve the S3_key & original filename of a transcript by its ID.
+        """
+        if str(user_id) != str(user_id):
+            raise PermissionError("You do not have permission to access this transcript.")
+        
+        transcript = self.get_by_id(transcript_id, user_id)
+        if transcript:
+            return (transcript.s3_key, transcript.original_filename)
+        return (None, None)

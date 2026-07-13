@@ -182,12 +182,50 @@ class TranscriptService:
     def get_by_user_id(
         self,
         user_id: UUID,
-        current_user_id: UUID
     ) -> list[TranscriptResponse]:
         """
         Retrieve all transcripts associated with a user.
         """
 
-        transcripts = self.transcript_repository.get_by_user_id(user_id, current_user_id)
+        transcripts = self.transcript_repository.get_by_user_id(user_id)
         
         return [self._to_response(transcript) for transcript in transcripts]
+    
+    def get_download_transcript_file(
+        self,
+        transcript_id: UUID,
+        local_file_path: str,
+        user_id: UUID,
+    ) -> str | None:
+        """
+        Retrieve the S3_key of a transcript by its ID.
+        """
+        S3_key, original_filename = self.transcript_repository.get_download_key_orignal(transcript_id, user_id)
+        if original_filename is None or S3_key is None:
+            logger.warning(
+                "Transcript %s not found.",
+                transcript_id,
+            )
+            return None
+        
+        local_file_path = f"{local_file_path}/{original_filename}" if original_filename else None
+
+        if S3_key is None:
+            logger.warning(
+                "Transcript %s not found.",
+                transcript_id,
+            )
+            return None
+        
+        self.storage_service.download_transcript_to_file(
+            s3_key=S3_key,
+            local_path=local_file_path
+        )
+
+        logger.info(
+            "Transcript %s downloaded to %s.",
+            transcript_id,
+            local_file_path,
+        )
+
+        return local_file_path

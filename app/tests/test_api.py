@@ -780,7 +780,7 @@ def test_get_transcript_by_user(client):
     created_transcript = create_transcript_response.json()
 
     # Retrieve transcripts for the user
-    get_transcripts_response = client.get(f"/api/v2/transcripts/{user_id}/all_transcripts")
+    get_transcripts_response = client.get(f"/api/v2/transcripts/user/all_transcripts")
     assert get_transcripts_response.status_code == 200
     user_transcripts = get_transcripts_response.json()
     assert any(t["id"] == created_transcript["id"] for t in user_transcripts)   
@@ -803,6 +803,65 @@ def test_get_transcript_by_user_no_transcripts(client):
     user_id = created_todo["user_id"]
 
     # Retrieve transcripts for the user (who has no transcripts)
-    get_transcripts_response = client.get(f"/api/v2/transcripts/{user_id}/all_transcripts")
+    get_transcripts_response = client.get(f"/api/v2/transcripts/user/all_transcripts")
     assert get_transcripts_response.status_code == 404
+    
+
+def test_get_download_transcript_success(client):
+    """
+    Test downloading a transcript for a specific todo item.
+    """
+    # First, create a new todo item
+    todo_data = {
+        "title": "Test Todo for Transcript Download",
+        "description": "This is a test todo item for transcript download.",
+        "completed": False,
+        "priority": "medium",
+        "category": "other"
+    }
+    create_todo_response = client.post("/api/v1/todos", json=todo_data)
+    assert create_todo_response.status_code == 201
+    created_todo = create_todo_response.json()
+    todo_id = created_todo["id"]
+
+    # Upload a transcript for the created todo item
+    files = {
+        "file": (
+            "test_transcript.txt",
+            b"This is a test transcript content.",
+            "text/plain",
+        )
+    }
+
+    create_transcript_response = client.post(
+        f"/api/v2/todos/{todo_id}/transcript", 
+        files=files,
+    )
+    assert create_transcript_response.status_code == 201
+    created_transcript = create_transcript_response.json()
+    transcript_id = created_transcript["id"]
+
+    local_file_path = f"app/tests"
+    return_file_path = f"{local_file_path}/test_transcript.txt"
+    # Download the transcript
+    download_transcript_response = client.get(
+        f"/api/v2/transcripts/{transcript_id}/download?local_file_path={local_file_path}",
+    )
+    
+    assert download_transcript_response.status_code == 200
+    downloaded_transcript = download_transcript_response.json()
+    assert downloaded_transcript["file_path"] == return_file_path
+
+def test_get_download_transcript_not_found(client):
+    """
+    Test downloading a transcript that does not exist.
+    """
+    non_existent_transcript_id = "00000000-0000-0000-0000-000000000000"
+    local_file_path = f"app/tests"
+    response = client.get(
+        f"/api/v2/transcripts/{non_existent_transcript_id}/download?local_file_path={local_file_path}"
+    )
+    assert response.status_code == 404
+    data = response.json()
+    assert data["detail"] == "Transcript not found."
     
