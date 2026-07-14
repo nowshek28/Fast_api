@@ -8,6 +8,7 @@ from app.services.todo_service import TodoService
 from app.services.transcript_service import TranscriptService
 from app.services.user_service import UserService
 from app.services.storage_service import StorageService
+from app.services.etl_service import ETLService
 
 from app.database.database import get_db
 
@@ -41,10 +42,14 @@ def get_transcript_repository(
 def get_s3_storage_service():
     return StorageService()
 
+def get_etl_service():
+    return ETLService()
+
 def get_transcript_service(
     transcript_repository=Depends(get_transcript_repository),
     todo_repository=Depends(get_postgres_repository),
     storage_service=Depends(get_s3_storage_service),
+    etl_service=Depends(get_etl_service),
 ):
-    return TranscriptService(transcript_repository, todo_repository, storage_service)
+    return TranscriptService(transcript_repository, todo_repository, storage_service, etl_service)
 

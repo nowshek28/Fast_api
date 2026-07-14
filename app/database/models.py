@@ -157,6 +157,28 @@ class TranscriptModel(Base):
         nullable=False
     )
 
+    processing_status: Mapped[str] = mapped_column(
+        String,
+        default="PROCESSING"
+    )
+
+    processing_started_at: Mapped[datetime | None] = mapped_column(
+        DateTime,
+        default=_utcnow,
+        nullable=True
+    )
+
+    processing_completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime,
+        default=_utcnow,
+        nullable=True
+    )
+
+    error_message: Mapped[str | None] = mapped_column(
+        String,
+        nullable=True
+    )
+
     user: Mapped["UserModel"] = relationship(
         "UserModel",
         back_populates="transcripts"

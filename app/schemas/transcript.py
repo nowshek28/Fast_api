@@ -1,7 +1,16 @@
+from enum import Enum
+
 from pydantic import BaseModel, Field
 from uuid import UUID
 
 from datetime import datetime
+
+
+class ProcessingStatus(str, Enum):
+    UPLOADED = "UPLOADED"
+    PROCESSING = "PROCESSING"
+    READY = "READY"
+    FAILED = "FAILED"
 
 class TranscriptBase(BaseModel):
     """Base schema for transcript"""
@@ -28,6 +37,17 @@ class TranscriptBase(BaseModel):
         gt=0,
         description="File size of the transcript in bytes"
     )
+
+    processing_status: ProcessingStatus = Field(
+        default=ProcessingStatus.UPLOADED,
+        description="Processing status of the transcript"
+    )
+
+    error_message: str | None = Field(
+        None,
+        description="Error message if processing failed"
+    )
+
 
 
 class TranscriptCreate(TranscriptBase):

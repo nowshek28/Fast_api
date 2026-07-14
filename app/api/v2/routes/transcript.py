@@ -9,6 +9,7 @@ from app.core.dependencies import get_service
 from app.auth.dependencies import get_current_db_user
 from app.core.dependencies import get_transcript_service
 from app.core.dependencies import get_s3_storage_service
+from app.core.dependencies import get_etl_service
 
 
 router = APIRouter()
@@ -40,7 +41,8 @@ async def upload_transcript(
     transcript = await transcript_service.create(
         todo_id=todo_id, 
         file=file,
-        user_id=current_user.id)
+        user_id=current_user.id
+    )
     
     if not transcript:
         raise HTTPException(

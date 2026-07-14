@@ -6,15 +6,20 @@ A production-inspired REST API for managing todo items, built with **FastAPI** a
 
 ## Version History
 
-| Version | Storage Backend | Description |
-|---|---|---|
-| **v1.0** | JSON file | Local JSON file persistence. Simple, zero-setup storage. |
-| **v1.1** | PostgreSQL on AWS RDS | Production-grade relational database. SQLAlchemy ORM, connection pooling, cloud-hosted on Amazon RDS. Alembic migrations for safe schema changes. Isolated SQLite test database. |
-| **v1.2** | PostgreSQL + AWS Cognito | Added **authentication & authorization** via AWS Cognito + JWT. Multi-user support with user isolation. User registration, login, token refresh, global sign-out. Auto-creates user records on first login. |
-| **v1.3** | PostgreSQL + AWS Cognito | Extended the Todo domain with **Priority** and **Category** support. Added enum-based validation, filtering endpoints, schema migration, repository/service updates, and expanded automated test coverage. |
-| **v1.4** | PostgreSQL + AWS Cognito | Introduced the foundation for the AI Productivity Platform. Added Transcript domain models, database schema, repository layer, service layer, and API v2 architecture in preparation for transcript ingestion and RAG processing. |
+| Version | Major Features |
+|----------|----------------|
+| **v1.0** | JSON-based Todo CRUD |
+| **v1.1** | PostgreSQL (AWS RDS), SQLAlchemy, Alembic |
+| **v1.2** | AWS Cognito Authentication, JWT Authorization, Multi-user support |
+| **v1.3** | Priority, Category, Filtering, Extended Testing |
+| **v2.0** | Project renamed to AI Productivity Platform |
+| **v2.1** | Transcript Module, AWS S3 Integration, Transcript APIs, Storage Service, Health Checks |
+| **v2.2** *(Current)* | Docker, RabbitMQ, Celery, ETL Infrastructure, Processing Lifecycle |
 
-> **Current version: v1.4 — AI Productivity Platform Foundation**
+
+> **Current Version: v2.2 (In Progress)**
+
+Current development focuses on building the infrastructure required for asynchronous transcript processing, semantic search, and Retrieval-Augmented Generation (RAG).
 
 ---
 
@@ -48,13 +53,20 @@ Version 1.x focuses on building a production-grade backend foundation using Fast
 - 🧪 **Comprehensive test suite** — 60 automated tests covering API, authentication, service, repository, and storage layers
 - 📝 **Request logging & middleware** — structured logs for every request
 
-- 🚀 **AI Platform Foundation**
+### AI Productivity Platform
 
-- API versioning (v1 and v2)
-- Transcript module architecture
-- Transcript metadata management
-- Foundation for cloud file storage (Amazon S3)
-- Foundation for Retrieval-Augmented Generation (RAG)
+Current AI capabilities
+
+- Transcript Upload
+- Transcript Download
+- Transcript Deletion
+- Transcript Authorization
+- AWS S3 Storage
+- Background Processing Infrastructure
+- Celery Worker
+- RabbitMQ Message Queue
+- Processing Status Tracking
+- ETL Service Architecture
 
 
 The codebase is intentionally structured to mirror real-world production patterns — layered concerns, dependency injection, custom exception handling, and isolated test environments.
@@ -80,6 +92,10 @@ The codebase is intentionally structured to mirror real-world production pattern
 | Alembic | Database migration tool |
 | Pytest 9.1 | Testing framework |
 | HTTPX | HTTP client for testing |
+| Docker | Containerization |
+| Docker Compose | Local orchestration |
+| RabbitMQ | Message Broker |
+| Celery | Background Task Queue |
 
 ---
 
@@ -100,6 +116,11 @@ app/
 │       └── routes/
 │           └── transcript.py         # Transcript Upload, Delete, Search (requires auth)
 │
+│
+├── celery/
+│   ├── celery_app.py                 # asynchronous task processing
+│   └── tasks/
+│       └── transcript_tasks.py       # Background task Logic
 │
 ├── auth/
 │   ├── cognito.py                    # AWS Cognito client (sign-up, login, token refresh, sign-out)
@@ -130,7 +151,9 @@ app/
 ├── services/
 │   ├── todo_service.py               # Todo business logic (now user-scoped)
 │   ├── user_service.py               # User business logic (get_or_create on first login)
-│   └── transcript_service.py         # transcript business logic (get_or_create for todo task)
+│   ├── transcript_service.py         # transcript business logic (get_or_create for todo task)
+│   ├── storage_service.py            # Storage business Logic (get_or_delete for S3)
+│   └── etl_service.py                # Extract Transform Load Logic (For RAG pipeline)
 │
 ├── repositories/
 │   ├── postgres_todo_repository.py   # Todo CRUD with user_id filtering
@@ -160,7 +183,8 @@ migrations/
     ├── 20260703_0637_fabbfc95d6f4_initial_schema.py              # Baseline: todos table
     ├── 20260707_0325_d463e870d8f6_add_users_table_and_user_relationship.py  # Users + FK
     ├── 20260709_0503_7e1a7423a064_addition_of_priority_category_to_todo_.py  # Users (Priority + Category)
-    └──20260710_0431_29027f8a809c_add_transcript_table.py                      # transcript table (FK todo_id)
+    ├── 20260710_0431_29027f8a809c_add_transcript_table.py                      # transcript table (FK todo_id)
+    └── 20260714_0444_1dca2c4573a2_addition_processing_status_to_transcript.py  # Transcripts (Status, Started_at, Completed_at, error_msg)
 alembic.ini                           # Alembic configuration
 ```
 
@@ -171,99 +195,137 @@ alembic.ini                           # Alembic configuration
 The app follows a **layered architecture** with **JWT-based authentication** — each layer has a single responsibility and communicates only with the layer directly below it.
 
 ```
-HTTP Request + JWT Bearer Token
-     │
-     ▼
-Auth Layer      — Verify JWT, lookup/create user in DB
-     │
-     ▼
-  Routes        — Handle HTTP: parse input, return responses, inject current_user
-     │
-     ▼
-  Services      — Business logic: enforce user ownership, generate IDs, set timestamps
-     │
-     ▼
-  Repositories  — Data access: CRUD operations with user_id filtering via SQLAlchemy ORM
-     │
-     ▼
-  Database      — PostgreSQL on AWS RDS (todos + users tables)
+                    HTTP Request
+                          │
+                          ▼
+                   Authentication
+                          │
+                          ▼
+                       Routes
+                          │
+                          ▼
+                Transcript Service
+                          │
+        ┌─────────────────┴────────────────┐
+        ▼                                  ▼
+ Storage Service                    ETL Service
+        │                                  │
+        ▼                                  ▼
+      AWS S3                     Celery + RabbitMQ
+                                            │
+                                            ▼
+                                      Celery Worker
+                                            │
+                                            ▼
+                                   Transcript Repository
+                                            │
+                                            ▼
+                                       PostgreSQL
 ```
 
-**Dependency injection** wires these layers together at runtime via FastAPI's `Depends()` system, defined in `core/dependencies.py` and `auth/dependencies.py`:
+## Transcript Processing Pipeline
 
-```
-get_current_db_user  →  get_current_user  →  verify JWT  →  AWS Cognito JWKS
-     │
-     ├── get_user_service  →  get_user_repository  →  get_db  →  PostgreSQL
-     │       │
-     │       ▼
-     │    get_service  →  get_postgres_repository  →  get_db  →  PostgreSQL
-     │ 
-     └── Todos
-             │
-             └── One-to-many
-                     │
-                     ▼
-               Transcript Metadata
-```
+The platform now supports asynchronous transcript processing.
 
-This makes each layer independently testable:
-- **Integration tests** override `get_db` with an in-memory SQLite session and `get_current_db_user` with a fake user
-- **Unit tests** swap repositories entirely for in-memory fakes (`FakeTodoRepository`, `FakeCognitoClient`)
+Current workflow
 
----
+Client
 
-## API Endpoints
+  ↓
 
-Base URL prefix: `/api/v1`
+Upload Transcript
 
-### Authentication
+   ↓
 
-All authentication endpoints are prefixed with `/auth` and **do not require a Bearer token** (they are used to obtain tokens).
+AWS S3
 
-| Method | Path | Description | Success Status |
-|---|---|---|---|
-| POST | `/auth/signup` | Register a new user | 200 |
-| POST | `/auth/confirm-signup` | Confirm email with 6-digit code | 200 |
-| POST | `/auth/login` | Authenticate and receive tokens | 200 |
-| POST | `/auth/refresh-token` | Get new access token using refresh token | 200 |
-| GET | `/auth/verify-token` | Verify a JWT token (for debugging) | 200 |
-| POST | `/auth/global-sign-out` | Sign out globally (invalidate all sessions) | 200 |
+   ↓
 
-**Sign-up request:**
-```json
-{
-  "email": "user@example.com",
-  "password": "SecurePass1!",
-  "name": "John Doe"
-}
-```
+Save Metadata
 
-**Login response:**
-```json
-{
-  "access_token": "eyJraWQiOiI...",
-  "id_token": "eyJraWQiOiI...",
-  "refresh_token": "eyJjdHkiOiI...",
-  "expires_in": 3600,
-  "token_type": "Bearer"
-}
-```
+   ↓
 
-> **Note:** After login, include the `access_token` in all `/api/v1/todos` requests via the `Authorization: Bearer <token>` header.
+Status = UPLOADED
 
----
+   ↓
+
+Submit Celery Task
+
+   ↓
+
+RabbitMQ Queue
+
+   ↓
+
+Celery Worker
+
+   ↓
+
+Status = PROCESSING
+
+   ↓
+
+ETL Pipeline (Coming)
+
+   ↓
+
+Status = READY
+
+
+## Transcript Lifecycle
+
+Each transcript moves through a processing lifecycle.
+
+UPLOADED
+
+   ↓
+
+PROCESSING
+
+   ↓  
+
+READY
+
+or
+
+FAILED
+
+Processing metadata stored in PostgreSQL
+
+- processing_status
+- processing_started_at
+- processing_completed_at
+- error_message
+
+
+## Docker
+
+The project now supports containerized development.
+
+Services
+
+- FastAPI
+- RabbitMQ
+- Celery Worker
+
+Managed using
+
+docker-compose.yml
+
+
 
 ### Health
 
-| Method | Path | Description | Status |
-|---|---|---|---|
-| GET | `/api/v1/health` | Liveness check | 200 |
+Application startup validates
 
-**Response:**
-```json
-{ "status": "healthy" }
-```
+✓ PostgreSQL
+
+✓ AWS S3
+
+Future
+
+- RabbitMQ
+- ChromaDB
 
 ---
 
@@ -415,17 +477,6 @@ Interactive docs are served automatically at:
 ## Database Migrations
 
 Schema changes are managed with **Alembic**. Every change to a model column is captured in a versioned migration file and applied to the database in a controlled, reversible way.
-
-### Current migration history
-
-| Revision | Description |
-|---|---|
-| `fabbfc95d6f4` | `initial_schema` — baseline for the `todos` table |
-| `d463e870d8f6` | `add_users_table_and_user_relationship` — adds `users` table and `user_id` FK to `todos` |
-| `7e1a7423a064` | `addition_of_priority_category_to_todo` — adds enum-based `priority` and `category` columns to the `todos` table|
-| `29027f8a809c` | `add_transcript_table` - adds `transcripts` table with FK from `todos` |
-
-> **Note:** The `user_id` column in the `todos` table is nullable to preserve existing todos created before multi-user support was added. New todos always have a `user_id` enforced by the application layer.
 
 ### Common commands
 

@@ -8,6 +8,7 @@ from fastapi import UploadFile
 from app.schemas.transcript import (
     TranscriptCreate,
     TranscriptResponse,
+    ProcessingStatus,
 )
 
 logger = logging.getLogger(__name__)
@@ -18,13 +19,14 @@ class TranscriptService:
     Service responsible for Transcript business logic.
     """
 
-    def __init__(self, transcript_repository, todo_repository, storage_service):
+    def __init__(self, transcript_repository, todo_repository, storage_service, etl_service):
         """
         Initialize the TranscriptService with the given repositories.
         """
         self.transcript_repository = transcript_repository
         self.todo_repository = todo_repository
         self.storage_service = storage_service
+        self.etl_service = etl_service
 
     def _to_response(self, model) -> TranscriptResponse:
         """
@@ -39,6 +41,10 @@ class TranscriptService:
             file_size=model.file_size,
             uploaded_at=model.uploaded_at,
             user_id=model.user_id,
+            processing_status=model.processing_status,
+            processing_started_at=model.processing_started_at,
+            processing_completed_at=model.processing_completed_at,
+            error_message=model.error_message,
         )
 
     async def create(
@@ -89,13 +95,24 @@ class TranscriptService:
             original_filename=file.filename,
             file_type=file.content_type,
             file_size=file_size,
-            user_id=user_id
+            user_id=user_id,
+            processing_status=ProcessingStatus.UPLOADED
         )   
 
         logger.info(
             "Transcript %s created successfully.",
             new_transcript.id,
         )
+
+        try:
+            self.etl_service.submit_transcript(new_transcript.id, new_transcript.user_id)     # celery task to process the transcript
+
+        except Exception:
+            logger.exception(
+                "Failed to submit transcript %s for background processing.",
+                new_transcript.id,
+            )
+            raise
 
         return self._to_response(new_transcript)
 
