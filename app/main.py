@@ -10,7 +10,7 @@ from app.core.config import settings
 from app.core.logging import setup_logging
 from app.core.exception_handlers import register_exception_handlers
 from app.core.middleware import register_middleware
-from app.core.startup_check import check_database_health, check_s3_health
+from app.core.startup_check import check_chroma_connection, check_database_health, check_s3_health
 
 setup_logging()
 
@@ -26,6 +26,7 @@ async def lifespan(app: FastAPI):
     try:
         check_database_health()
         check_s3_health()
+        check_chroma_connection()
         logger.info("Startup checks passed. Application is ready.")
         yield
     except Exception as e:

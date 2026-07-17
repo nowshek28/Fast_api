@@ -14,14 +14,31 @@ A production-inspired REST API for managing todo items, built with **FastAPI** a
 | **v1.3** | Priority, Category, Filtering, Extended Testing |
 | **v2.0** | Project renamed to AI Productivity Platform |
 | **v2.1** | Transcript Module, AWS S3 Integration, Transcript APIs, Storage Service, Health Checks |
-| **v2.2** *(Current)* | Docker, RabbitMQ, Celery, ETL Infrastructure, Processing Lifecycle |
+| **v2.2** | Docker, RabbitMQ, Celery, ETL Infrastructure, Processing Lifecycle |
 
 
-> **Current Version: v2.2 (In Progress)**
+> **Current Version: v2.2**
 
-Current development focuses on building the infrastructure required for asynchronous transcript processing, semantic search, and Retrieval-Augmented Generation (RAG).
+**Production Asynchronous ETL Pipeline**
+
+Version 2.2 introduces a complete asynchronous ETL pipeline for transcript processing. Uploaded transcripts are processed in the background using Celery and RabbitMQ, transformed into vector embeddings, and stored in ChromaDB for future semantic search and Retrieval-Augmented Generation (RAG).
 
 ---
+
+### Features
+
+- Dockerized Infrastructure
+- RabbitMQ Message Broker
+- Celery Background Worker
+- Transcript Processing Lifecycle
+- Multi-format Text Extraction
+- Generic Text Cleaning
+- Recursive Text Chunking
+- Hugging Face Embedding Generation
+- ChromaDB Vector Storage
+- Metadata Enrichment
+- Production ETL Architecture
+
 
 ## Table of Contents
 
@@ -141,7 +158,8 @@ app/
 ├── database/
 │   ├── base.py                       # SQLAlchemy DeclarativeBase
 │   ├── database.py                   # Engine, SessionLocal, get_db() dependency
-│   └── models.py                     # TodoModel + UserModel + Transcript ORM definitions
+│   ├── models.py                     # TodoModel + UserModel + Transcript ORM definitions
+│   └── chroma.py
 │
 ├── schemas/
 │   ├── todo.py                       # Todo Pydantic models (includes user_id)
@@ -153,7 +171,13 @@ app/
 │   ├── user_service.py               # User business logic (get_or_create on first login)
 │   ├── transcript_service.py         # transcript business logic (get_or_create for todo task)
 │   ├── storage_service.py            # Storage business Logic (get_or_delete for S3)
-│   └── etl_service.py                # Extract Transform Load Logic (For RAG pipeline)
+│   └── etl
+│       ├── etl_service.py
+│       ├── text_extractor.py
+│       ├── text_cleaner.py
+│       ├── text_chunker.py
+│       ├── embedding_service.py
+│       └── vector_store_service.py
 │
 ├── repositories/
 │   ├── postgres_todo_repository.py   # Todo CRUD with user_id filtering
@@ -195,108 +219,193 @@ alembic.ini                           # Alembic configuration
 The app follows a **layered architecture** with **JWT-based authentication** — each layer has a single responsibility and communicates only with the layer directly below it.
 
 ```
-                    HTTP Request
-                          │
-                          ▼
-                   Authentication
-                          │
-                          ▼
-                       Routes
-                          │
-                          ▼
-                Transcript Service
-                          │
-        ┌─────────────────┴────────────────┐
-        ▼                                  ▼
- Storage Service                    ETL Service
-        │                                  │
-        ▼                                  ▼
-      AWS S3                     Celery + RabbitMQ
-                                            │
-                                            ▼
-                                      Celery Worker
-                                            │
-                                            ▼
-                                   Transcript Repository
-                                            │
-                                            ▼
-                                       PostgreSQL
+                Client
+                   │
+                   ▼
+               FastAPI API
+                   │
+                   ▼
+          Transcript Service
+                   │
+         ┌─────────┴─────────┐
+         ▼                   ▼
+ Storage Service        ETL Service
+         │                   │
+         ▼                   ▼
+      AWS S3            RabbitMQ Queue
+                             │
+                             ▼
+                      Celery Worker
+                             │
+                             ▼
+                    Download Transcript
+                             │
+                             ▼
+                      Text Extraction
+                             │
+                             ▼
+                       Text Cleaning
+                             │
+                             ▼
+                        Text Chunking
+                             │
+                             ▼
+                  Embedding Generation
+                             │
+                             ▼
+                    Metadata Preparation
+                             │
+                             ▼
+                        ChromaDB
+                             │
+                             ▼
+                    PostgreSQL Status
 ```
 
 ## Transcript Processing Pipeline
 
-The platform now supports asynchronous transcript processing.
-
-Current workflow
-
+```
 Client
 
-  ↓
+    │
 
 Upload Transcript
 
-   ↓
+    │
 
 AWS S3
 
-   ↓
+    │
 
-Save Metadata
+Store Metadata
 
-   ↓
+    │
 
 Status = UPLOADED
 
-   ↓
-
-Submit Celery Task
-
-   ↓
+    │
 
 RabbitMQ Queue
 
-   ↓
+    │
 
 Celery Worker
 
-   ↓
+    │
 
 Status = PROCESSING
 
-   ↓
+    │
 
-ETL Pipeline (Coming)
+Download Transcript
 
-   ↓
+    │
+
+Extract Text
+
+    │
+
+Clean Text
+
+    │
+
+Chunk Text
+
+    │
+
+Generate Embeddings
+
+    │
+
+Prepare Metadata
+
+    │
+
+Store in ChromaDB
+
+    │
 
 Status = READY
+```
 
+---
 
-## Transcript Lifecycle
+# ETL Pipeline
 
-Each transcript moves through a processing lifecycle.
+## Stage 1 – Download
 
-UPLOADED
+Downloads transcript from AWS S3.
 
-   ↓
+---
 
-PROCESSING
+## Stage 2 – Text Extraction
 
-   ↓  
+Currently Supported
 
-READY
+- TXT
+- PDF
+- DOCX
 
-or
+Future Support
 
-FAILED
+- OCR
+- Images
+- Audio Transcripts
 
-Processing metadata stored in PostgreSQL
+---
 
-- processing_status
-- processing_started_at
-- processing_completed_at
-- error_message
+## Stage 3 – Text Cleaning
 
+Current preprocessing includes
+
+- Lowercase conversion
+- HTML removal
+- Emoji removal
+- URL removal
+- Extra whitespace normalization
+- Special character cleanup
+
+---
+
+## Stage 4 – Chunking
+
+Uses LangChain Recursive Character Text Splitter.
+
+Configurable
+
+- Chunk Size
+- Chunk Overlap
+
+---
+
+## Stage 5 – Embedding Generation
+
+Current Model
+
+- sentence-transformers/all-MiniLM-L6-v2
+
+Future
+
+- OpenAI Embeddings
+- Other Hugging Face Models
+
+---
+
+## Stage 6 – Vector Storage
+
+Embeddings are stored in ChromaDB together with transcript metadata.
+
+Metadata includes
+
+- transcript_id
+- todo_id
+- user_id
+- filename
+- file_type
+- chunk_index
+- embedding_model
+
+---
 
 ## Docker
 

@@ -4,6 +4,7 @@ from sqlalchemy import text
 from app.core.config import settings
 from app.database.database import SessionLocal
 from app.database.s3storage import s3_client as s3
+from app.database.chroma import chroma_client
 
 logger = logging.getLogger(__name__)
 
@@ -28,3 +29,16 @@ def check_s3_health():
         logger.info(f"S3 health check failed: {e}")
         logger.error(f"S3 health check failed: {e}")
         raise RuntimeError("S3 health check failed")
+    
+def check_chroma_connection() -> None:
+    """
+    validates the connection to the Chroma database by attempting to retrieve the collection.
+    """
+    try:
+        chroma_client.heartbeat()
+
+        logger.info("Successfully connected to Chroma database.")
+
+    except Exception as exc:
+        logger.exception("Failed to connect to Chroma database.")
+        raise ConnectionError("Failed to connect to Chroma database.") from exc

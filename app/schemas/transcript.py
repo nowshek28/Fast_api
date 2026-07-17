@@ -9,6 +9,11 @@ from datetime import datetime
 class ProcessingStatus(str, Enum):
     UPLOADED = "UPLOADED"
     PROCESSING = "PROCESSING"
+    EXTRACTING = "EXTRACTING"
+    NORMALIZING = "NORMALIZING"
+    CHUNKING = "CHUNKING"
+    EMBEDDING = "EMBEDDING"
+    UPLOADING = "UPLOADING"
     READY = "READY"
     FAILED = "FAILED"
 

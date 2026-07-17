@@ -8,9 +8,10 @@ from app.services.todo_service import TodoService
 from app.services.transcript_service import TranscriptService
 from app.services.user_service import UserService
 from app.services.storage_service import StorageService
-from app.services.etl_service import ETLService
+from app.services.etl.etl_service import ETLService
 
 from app.database.database import get_db
+from app.database.chroma import transcript_collection, chroma_client
 
 
 def get_postgres_repository(
@@ -53,3 +54,8 @@ def get_transcript_service(
 ):
     return TranscriptService(transcript_repository, todo_repository, storage_service, etl_service)
 
+def get_chroma_client():
+    return chroma_client
+
+def get_transcript_collection():
+    return transcript_collection
