@@ -189,3 +189,52 @@ class TranscriptModel(Base):
         back_populates="transcript"
     )
 
+class SessionModel(Base):
+    __tablename__ = "sessions"
+
+    id: Mapped[str] = mapped_column(
+        String,
+        primary_key=True,
+        default=lambda: str(uuid4())
+    )
+
+    user_id: Mapped[str] = mapped_column(
+        ForeignKey("users.id"),
+        nullable=False
+    )
+
+    transcript_id: Mapped[str] = mapped_column(
+        ForeignKey("transcripts.id"),
+        nullable=False
+    )
+
+    title: Mapped[str] = mapped_column(
+        String,
+        nullable=False
+    )
+
+    summary: Mapped[str | None] = mapped_column(
+        String,
+        nullable=True
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=_utcnow
+    )
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=_utcnow,
+        onupdate=_utcnow
+    )
+
+    user: Mapped["UserModel"] = relationship(
+        "UserModel",
+        back_populates="sessions"
+    )
+
+    transcript: Mapped["TranscriptModel"] = relationship(
+        "TranscriptModel",
+        back_populates="sessions"
+    )
